@@ -17,8 +17,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
 void AFPSHeroCharacter::GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const
 {
-	OutLocation = FirstPersonCameraComponent->GetComponentLocation();
-	OutRotation = FirstPersonCameraComponent->GetComponentRotation();
+	auto controller = Cast<APlayerController>(GetController());
+	OutLocation = controller->PlayerCameraManager->GetCameraLocation();
+	OutRotation = controller->PlayerCameraManager->GetCameraRotation();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -54,19 +55,34 @@ AFPSHeroCharacter::AFPSHeroCharacter()
 	// are set in the derived blueprint asset named MyCharacter to avoid direct content references in C++.
 }
 
+AFPSHeroWeapon* AFPSHeroCharacter::GetWeapon()
+{
+	return Weapon;
+}
+
+void AFPSHeroCharacter::GrapWeapon(TSubclassOf<class AFPSHeroWeapon> GrappedWeaponType)
+{
+	if (Weapon) {
+		Weapon->Destroy();
+	}
+
+	FActorSpawnParameters paras;
+	paras.Owner = this;
+	paras.Instigator = this;
+	paras.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Weapon = GetWorld()->SpawnActor<AFPSHeroWeapon>(GrappedWeaponType, FTransform(), paras);
+	Weapon->SetOwner(this);
+	FAttachmentTransformRules rule(EAttachmentRule::SnapToTarget, true);
+	Weapon->AttachToComponent(Mesh1P, rule, WeaponSocketName);
+}
+
 void AFPSHeroCharacter::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
 
 	if (WeaponType) {
-		FActorSpawnParameters paras;
-		paras.Owner = this;
-		paras.Instigator = this;
-		paras.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		Weapon = GetWorld()->SpawnActor<AFPSHeroWeapon>(WeaponType, FTransform(), paras);
-		FAttachmentTransformRules rule(EAttachmentRule::SnapToTarget, true);
-		Weapon->AttachToComponent(Mesh1P, rule, WeaponSocketName);
+		GrapWeapon(WeaponType);
 	}
 
 	// Show or hide the two versions of the gun based on whether or not we're using motion controllers.
@@ -80,14 +96,12 @@ void AFPSHeroCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerI
 {
 	// set up gameplay key bindings
 	check(PlayerInputComponent);
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
 	// Bind fire event
 	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &AFPSHeroCharacter::OnFire);
-
-	// Enable touchscreen input
-	EnableTouchscreenMovement(PlayerInputComponent);
-
-	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &AFPSHeroCharacter::OnResetVR);
+	PlayerInputComponent->BindAction("Fire", IE_Released, this, &AFPSHeroCharacter::EndFire);
+	PlayerInputComponent->BindAction("SwitchFireMode", IE_Pressed, this, &AFPSHeroCharacter::SwitchFireMode);
 
 	// Bind movement events
 	PlayerInputComponent->BindAxis("MoveForward", this, &AFPSHeroCharacter::MoveForward);
@@ -108,7 +122,25 @@ void AFPSHeroCharacter::OnFire()
 	if (Weapon) {
 		Weapon->Fire();
 	}
+}
 
+void AFPSHeroCharacter::EndFire()
+{
+	// try and fire a projectile
+	if (Weapon) {
+		Weapon->EndFire();
+	}
+}
+
+void AFPSHeroCharacter::SwitchFireMode()
+{
+	if (Weapon) {
+		Weapon->SwitchFireMode();
+	}
+}
+
+void AFPSHeroCharacter::DoFire()
+{
 	// try and play a firing animation if specified
 	if (FireAnimation != NULL)
 	{
@@ -119,36 +151,6 @@ void AFPSHeroCharacter::OnFire()
 			AnimInstance->Montage_Play(FireAnimation, 1.f);
 		}
 	}
-}
-
-void AFPSHeroCharacter::OnResetVR()
-{
-	UHeadMountedDisplayFunctionLibrary::ResetOrientationAndPosition();
-}
-
-void AFPSHeroCharacter::BeginTouch(const ETouchIndex::Type FingerIndex, const FVector Location)
-{
-	if (TouchItem.bIsPressed == true)
-	{
-		return;
-	}
-	if ((FingerIndex == TouchItem.FingerIndex) && (TouchItem.bMoved == false))
-	{
-		OnFire();
-	}
-	TouchItem.bIsPressed = true;
-	TouchItem.FingerIndex = FingerIndex;
-	TouchItem.Location = Location;
-	TouchItem.bMoved = false;
-}
-
-void AFPSHeroCharacter::EndTouch(const ETouchIndex::Type FingerIndex, const FVector Location)
-{
-	if (TouchItem.bIsPressed == false)
-	{
-		return;
-	}
-	TouchItem.bIsPressed = false;
 }
 
 void AFPSHeroCharacter::MoveForward(float Value)
@@ -179,19 +181,4 @@ void AFPSHeroCharacter::LookUpAtRate(float Rate)
 {
 	// calculate delta for this frame from the rate information
 	AddControllerPitchInput(Rate * BaseLookUpRate * GetWorld()->GetDeltaSeconds());
-}
-
-bool AFPSHeroCharacter::EnableTouchscreenMovement(class UInputComponent* PlayerInputComponent)
-{
-	if (FPlatformMisc::SupportsTouchInput() || GetDefault<UInputSettings>()->bUseMouseForTouch)
-	{
-		PlayerInputComponent->BindTouch(EInputEvent::IE_Pressed, this, &AFPSHeroCharacter::BeginTouch);
-		PlayerInputComponent->BindTouch(EInputEvent::IE_Released, this, &AFPSHeroCharacter::EndTouch);
-
-		//Commenting this out to be more consistent with FPS BP template.
-		//PlayerInputComponent->BindTouch(EInputEvent::IE_Repeat, this, &AFPSHeroCharacter::TouchUpdate);
-		return true;
-	}
-	
-	return false;
 }
