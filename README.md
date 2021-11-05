@@ -1,9 +1,12 @@
 # FPS Hero
 
-Traing your aiming skills here!
+Traing your aiming skills!
 
 ## Features
 
-- Wandering robots and obstacles
+- Multiple weapon options
+- Recoil system like CS
+- Wandering/Standing robots
+- Obstacles
 - Adjustable training target
 - Marquees when finished
