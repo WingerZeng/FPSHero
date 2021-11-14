@@ -1,16 +1,18 @@
 #include "FPSHeroWeapon.h"
 #include "FPSHero.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "Particles/ParticleSystem.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
-#include "Components/SkeletalMeshComponent.h"
-#include "Kismet/GameplayStatics.h"
-#include "DrawDebugHelpers.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
-#include "FPSHeroCharacter.h"
+#include "TimerManager.h"
+#include "DrawDebugHelpers.h"
 #include "ButtonBoxComponent.h"
-#include "Kismet/KismetMathLibrary.h"
+#include "FPSHeroCharacter.h"
+#include "FPSHeroRecoilBase.h"
 AFPSHeroWeapon::AFPSHeroWeapon()
 {
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
@@ -31,11 +33,6 @@ AFPSHeroWeapon::AFPSHeroWeapon()
 	this->PrimaryActorTick.bCanEverTick = true;
 	ShootIntervalSecond = 1;
 	Mode = FireMode::Single;
-	FireTimer = 0;
-	IsFiring = false;
-	SecondsSinceStopFire = 0;
-
-	RestoreSecond = 2;
 }
 
 void AFPSHeroWeapon::BeginPlay()
@@ -46,31 +43,22 @@ void AFPSHeroWeapon::BeginPlay()
 void AFPSHeroWeapon::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (ShootIntervalSecond > 0) {
-		if (IsFiring && Mode == FireMode::Auto) {
-			SecondsSinceStartFire += DeltaSeconds;
-			FireTimeForRecoil += DeltaSeconds;
-			FireTimer += DeltaSeconds;
-			if (FireTimer >= ShootIntervalSecond) {
-				FireTimer -= ShootIntervalSecond;
-				SingleFire();
-			}
-			// Pitch increase
-			float RecoilPitch;
-			GetRecoilPitchWithTime(FireTimeForRecoil, RecoilPitch);
-			ApplyRecoilPitch(-RecoilPitch * DeltaSeconds);
+	if(!IsFiring){
+		// 停止射击后，计算后坐力恢复和准心恢复
+		SecondsSinceStopFire += DeltaSeconds;
+		// 后坐力恢复
+		if (CurrentFiredAmmo > 0 && RecoilInstance) {
+			CurrentFiredAmmo = FGenericPlatformMath::Max(0.0f, 
+				FGenericPlatformMath::CeilToFloat((RecoilInstance->RecoilRestoreTime - SecondsSinceStopFire) 
+					/ RecoilInstance->RecoilRestoreTime * FiredAmmoWhenStop));
 		}
-		else if(!IsFiring){
-			SecondsSinceStopFire += DeltaSeconds;
-			if (FireTimeForRecoil > 0) {
-				// Pitch retore
-				float deltaFireTime = (1 - (RestoreSecond - SecondsSinceStopFire) / RestoreSecond) * FireTimeWhenStop;
-				float RecoilPitch;
-				GetRecoilPitchWithTime(FireTimeForRecoil, RecoilPitch);
-				//ApplyRecoilPitch(RecoilPitch * FGenericPlatformMath::Min(DeltaSeconds, deltaFireTime));
-				FireTimeForRecoil = FGenericPlatformMath::Max((RestoreSecond - SecondsSinceStopFire) / RestoreSecond * FireTimeWhenStop, 0.0f);
-			}
-		}
+		// 准心恢复
+		float RestoreRatio = 1;
+		if (RecoilInstance)
+			RecoilInstance->GetCameraRestoreRatio(SecondsSinceStopFire, RestoreRatio);
+		float TargetPicth = PitchOffsetWhenStop * (1 - RestoreRatio);
+		float TargetYaw = YawOffsetWhenStop * (1 - RestoreRatio);
+		ApplyNewRecoilCameraOffset(TargetPicth, TargetYaw);
 	}
 }
 
@@ -82,9 +70,8 @@ void AFPSHeroWeapon::SetOwner(AFPSHeroCharacter* MyOwner)
 void AFPSHeroWeapon::Fire()
 {
 	IsFiring = true;
-	SecondsSinceStopFire = 0;
-	SecondsSinceStartFire = 0;
-	FireTimeForRecoil += ShootIntervalSecond;
+	if(Mode == FireMode::Auto && ShootIntervalSecond > 0)
+		GetWorld()->GetTimerManager().SetTimer(FireTimer, this, &AFPSHeroWeapon::SingleFire, ShootIntervalSecond, true, ShootIntervalSecond);
 	SingleFire();
 }
 
@@ -92,9 +79,10 @@ void AFPSHeroWeapon::EndFire()
 {
 	IsFiring = false;
 	SecondsSinceStopFire = 0;
-	SecondsSinceStartFire = 0;
-	FireTimeWhenStop = FireTimeForRecoil;
-	FireTimer = 0;
+	FiredAmmoWhenStop = CurrentFiredAmmo;
+	PitchOffsetWhenStop = PitchOffset;
+	YawOffsetWhenStop = YawOffset;
+	GetWorld()->GetTimerManager().ClearTimer(FireTimer);
 }
 
 void AFPSHeroWeapon::SwitchFireMode()
@@ -149,63 +137,85 @@ void AFPSHeroWeapon::dealHit_Implementation(const FHitResult& Hit)
 
 void AFPSHeroWeapon::PlayFireEffect()
 {
+	//枪口特效
 	if (MussleEffect) {
 		UGameplayStatics::SpawnEmitterAttached(MussleEffect, MeshComp, MussleName);
 	}
+	//音效
 	if(FireSound)
 		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
-	APlayerController* controller = Cast<APlayerController>(Owner->GetController());
-	if (controller) {
-		controller->ClientStartCameraShake(CameraShakeType);
+	APlayerController* Controller = Cast<APlayerController>(Owner->GetController());
+
+	if (RecoilInstance) {
+		// 镜头抖动
+		RecoilInstance->ApplyCameraShake(CurrentFiredAmmo, Controller);
+		// 镜头移动
+		float RecoilPitch, RecoilYaw;
+		RecoilInstance->GetCameraMovement(CurrentFiredAmmo, RecoilPitch, RecoilYaw);
+		ApplyNewRecoilCameraOffset(RecoilPitch, RecoilYaw);
 	}
 }
 
 void AFPSHeroWeapon::SingleFire()
 {
+	CurrentFiredAmmo++;
 	if (Owner) {
+		// 得到摄像机的位置和朝向
 		FVector eyeLoc;
 		FRotator eyeRot;
 		Owner->GetActorEyesViewPoint(eyeLoc, eyeRot);
 		FVector eyeDir = eyeRot.Vector();
 
-		/* Deal with Recoil Spread */
-		// Apply Directional Spread
+		/* 后坐力扩散 */
+		// 方向性扩散
+		// 首先得到镜头的Up、Right方向在世界坐标系下的方向向量，再乘上对应方向的扩散系数
 		eyeDir.Normalize();
 		FVector UpDir(0, 0, 1);
 		FVector RightDir = FVector::CrossProduct(eyeDir, UpDir);
 		RightDir.Normalize();
-		float SpreadUp, SpreadRight;
-		GetRecoilDirectionalSpreadWithTime(FireTimeForRecoil, SpreadUp, SpreadRight);
+		float SpreadUp=0, SpreadRight=0;
+		if (RecoilInstance) {
+			RecoilInstance->GetDirectionalSpread(CurrentFiredAmmo, SpreadUp, SpreadRight);
+		}
 		eyeDir += UpDir * SpreadUp + RightDir * SpreadRight;
 		eyeDir.Normalize();
-		// Apply Random Spread
-		float SpreadScale;
-		GetRecoilRandomSpreadWithTime(FireTimeForRecoil, SpreadScale);
+		// 随机扩散
+		// 根据扩散系数，在圆锥上取随机向量
+		float SpreadScale = 0;
+		if (RecoilInstance) {
+			RecoilInstance->GetRandomSpread(CurrentFiredAmmo, SpreadScale);
+		}
 		eyeDir = UKismetMathLibrary::RandomUnitVectorInConeInRadians(eyeDir, SpreadScale);
 
+		// 得到光线追踪目标点
 		FVector traceEnd = eyeLoc + eyeDir * 10000;
 		FHitResult Hit;
 		FCollisionQueryParams para;
-		//忽略角色和枪模型
+		// 忽略角色和枪模型
 		para.AddIgnoredActor(Owner);
 		para.AddIgnoredActor(this);
-		//使用复杂碰撞来求交
+		// 使用复杂碰撞来求交
 		para.bTraceComplex = true;
 		para.bReturnPhysicalMaterial = true;
 		if (GetWorld()->LineTraceSingleByChannel(Hit, eyeLoc, traceEnd, TRACECHANNEL_WEAPON, para)) {
+			// 处理命中效果
 			dealHit(Hit);
 		}
-
 		PlayFireEffect();
 	}
 }
 
-void AFPSHeroWeapon::ApplyRecoilPitch(float pitch)
+void AFPSHeroWeapon::ApplyNewRecoilCameraOffset(float Pitch, float Yaw)
 {
 	if (!Owner)
 		return;
 	APlayerController* controller = Cast<APlayerController>(Owner->GetController());
 	if (controller) {
-		controller->AddPitchInput(pitch);
+		// 取反使得正值为镜头向上
+		controller->AddPitchInput(-(Pitch - PitchOffset));
+		// 取反使得正值为镜头向右
+		controller->AddYawInput(-(Yaw - YawOffset));
+		PitchOffset = Pitch;
+		YawOffset = Yaw;
 	}
 }

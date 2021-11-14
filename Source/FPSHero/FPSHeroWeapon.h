@@ -6,13 +6,11 @@
 
 class USkeletalMeshComponent;
 class UParticleSystem;
-class UDefaultCameraShakeBase;
 class UDamageType;
-class UFPSHeroCameraShakePattern;
 class AFPSHeroCharacter;
-class UCameraShakePattern;
 class USceneComponent;
 class USoundBase;
+class UFPSHeroRecoilBase;
 struct FHitResult;
 
 UENUM()
@@ -36,15 +34,19 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
-protected:
-	UPROPERTY(EditAnywhere, Category="Component")
-		USkeletalMeshComponent* MeshComp;
+	void SetOwner(AFPSHeroCharacter* MyOwner);
 
-	UPROPERTY(VisibleAnywhere, Category = "Component")
-		USceneComponent* Root;
+	void SwitchFireMode();
+
+	void PlayFireEffect();
+
+protected:
+	virtual void SingleFire();
+
+	void ApplyNewRecoilCameraOffset(float Pitch, float Yaw);
 
 public:
-	void SetOwner(AFPSHeroCharacter* MyOwner);
+	/* Blueprint Methods */
 
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	virtual void Fire();
@@ -52,12 +54,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	virtual void EndFire();
 
-	void SwitchFireMode();
-
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapon")
 	void dealHit(const FHitResult& Hit);
 
-	void PlayFireEffect();
+	/* Blueprint Attributes */
 
 	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
 		FName MussleName;
@@ -71,11 +71,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 		bool IsFireModeLocked;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Recoil")
-		float RestoreSecond;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Recoil")
-		TSubclassOf<UCameraShakeBase> CameraShakeType;
+	UPROPERTY(EditDefaultsOnly, Instanced, Category = "Recoil")
+		UFPSHeroRecoilBase* RecoilInstance;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Effect")
 		UParticleSystem* MussleEffect;
@@ -101,31 +98,28 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Effect")
 		float HeadDamage;
 
+
 protected:
-	UFUNCTION(BlueprintImplementableEvent, Category = "Recoil")
-		void GetRecoilPitchWithTime(float time, float& pitch);
+	UPROPERTY(EditAnywhere, Category = "Component")
+		USkeletalMeshComponent* MeshComp;
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "Recoil")
-		//horizon or vertical equal to 1 means 45°spread
-		void GetRecoilDirectionalSpreadWithTime(float time, float& SpreadUp, float& SpreadRight);
+	UPROPERTY(VisibleAnywhere, Category = "Component")
+		USceneComponent* Root;
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "Recoil")
-		//horizon or vertical equal to 1 means 45°spread
-		void GetRecoilRandomSpreadWithTime(float time, float& scale);
-
-	virtual void SingleFire();
-
-	void ApplyRecoilPitch(float pitch);
-
-private:
 	AFPSHeroCharacter* Owner = nullptr;
 
-	//For Automatic
-	float FireTimer;
-	bool IsFiring;
-	float SecondsSinceStartFire;
-	float SecondsSinceStopFire;
-	float FireTimeForRecoil;
-	float FireTimeWhenStop;
+	//float FireTimer = 0;
+	FTimerHandle FireTimer;
+	bool IsFiring = false;
+	// 统计之前射出的子弹数，用于调节后坐力，停止开火后逐渐衰减
+	float CurrentFiredAmmo = 0;
+	// 统计停火后“休息”时间
+	float SecondsSinceStopFire = 0;
+	// 记录停止开火时的累计射击子弹数
+	float FiredAmmoWhenStop = 0;
+	// 统计镜头偏移量
+	float PitchOffset = 0, YawOffset = 0;
+	// 记录停止开火时的镜头偏移
+	float PitchOffsetWhenStop = 0, YawOffsetWhenStop = 0;
 };
 
