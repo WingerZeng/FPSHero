@@ -1,4 +1,4 @@
-#include "FPSHeroWeapon.h"
+#include "FPSHeroWeaponBase.h"
 #include "FPSHero.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"

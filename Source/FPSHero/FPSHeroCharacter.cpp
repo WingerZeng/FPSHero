@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include <algorithm>
 #include "FPSHeroCharacter.h"
+#include <algorithm>
 #include "FPSHeroGrenade.h"
 #include "FPSHeroWeapon.h"
 #include "FPSHeroGrenade.h"
@@ -10,13 +10,10 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
 #include "GameFramework/InputSettings.h"
-#include "HeadMountedDisplayFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Kismet/KismetMathLibrary.h"
-#include "MotionControllerComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
