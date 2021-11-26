@@ -7,7 +7,6 @@
 #include "Particles/ParticleSystem.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
-#include "PhysicalMaterials/PhysicalMaterial.h"
 #include "TimerManager.h"
 #include "DrawDebugHelpers.h"
 #include "ButtonBoxComponent.h"
@@ -15,17 +14,7 @@
 #include "FPSHeroRecoilBase.h"
 AFPSHeroWeapon::AFPSHeroWeapon()
 {
-	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-	this->SetRootComponent(Root);
-
-	MeshComp = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Mesh"));
-
 	MussleName = "MuzzleSocket";
-
-	MeshComp->SetCollisionResponseToChannel(TRACECHANNEL_WEAPON, ECR_Ignore);
-	MeshComp->bCastDynamicShadow = false;
-	MeshComp->CastShadow = false;
-	MeshComp->SetupAttachment(Root);
 
 	BodyDamage = 50;
 	HeadDamage = 100;
@@ -33,11 +22,6 @@ AFPSHeroWeapon::AFPSHeroWeapon()
 	this->PrimaryActorTick.bCanEverTick = true;
 	ShootIntervalSecond = 1;
 	Mode = FireMode::Single;
-}
-
-void AFPSHeroWeapon::BeginPlay()
-{
-	Super::BeginPlay();
 }
 
 void AFPSHeroWeapon::Tick(float DeltaSeconds)
@@ -62,11 +46,6 @@ void AFPSHeroWeapon::Tick(float DeltaSeconds)
 	}
 }
 
-void AFPSHeroWeapon::SetOwner(AFPSHeroCharacter* MyOwner)
-{
-	this->Owner = MyOwner;
-}
-
 void AFPSHeroWeapon::Fire()
 {
 	IsFiring = true;
@@ -75,7 +54,7 @@ void AFPSHeroWeapon::Fire()
 	SingleFire();
 }
 
-void AFPSHeroWeapon::EndFire()
+void AFPSHeroWeapon::EndFire(EFireEndReason Reason)
 {
 	IsFiring = false;
 	SecondsSinceStopFire = 0;
@@ -85,38 +64,24 @@ void AFPSHeroWeapon::EndFire()
 	GetWorld()->GetTimerManager().ClearTimer(FireTimer);
 }
 
-void AFPSHeroWeapon::SwitchFireMode()
-{
-	if (!IsFireModeLocked) {
-		switch (Mode)
-		{
-		case FireMode::Auto:
-			Mode = FireMode::Single;
-			break;
-		case FireMode::Single:
-			Mode = FireMode::Auto;
-			break;
-		default:
-			break;
-		}
-	}
-	return;
-}
-
 void AFPSHeroWeapon::dealHit_Implementation(const FHitResult& Hit)
 {
 	EPhysicalSurface physType = UPhysicalMaterial::DetermineSurfaceType(Hit.PhysMaterial.Get());
 
 	UParticleSystem* EffectToPlay;
 
+	FVector eyeLoc;
+	FRotator eyeRot;
+	Owner->GetActorEyesViewPoint(eyeLoc, eyeRot);
+
 	switch (physType) {
 	case PHYSMAT_FLESH: //default flesh
 		EffectToPlay = DefaultFleshEffect;
-		UGameplayStatics::ApplyDamage(Hit.GetActor(), BodyDamage, GEngine->GetFirstLocalPlayerController(GetWorld()), this, DamageType);
+		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), BodyDamage, Hit.ImpactPoint - eyeLoc, Hit, GEngine->GetFirstLocalPlayerController(GetWorld()), this, DamageType);
 		break;
 	case PHYSMAT_FLESHVULNERABLE: //vulnerable flesh
 		EffectToPlay = HeadshotEffect;
-		UGameplayStatics::ApplyDamage(Hit.GetActor(), HeadDamage, GEngine->GetFirstLocalPlayerController(GetWorld()), this, DamageType);
+		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), HeadDamage, Hit.ImpactPoint - eyeLoc, Hit, GEngine->GetFirstLocalPlayerController(GetWorld()), this, DamageType);
 		break;
 	default:
 		EffectToPlay = DefaultImpactEffect;
@@ -131,7 +96,7 @@ void AFPSHeroWeapon::dealHit_Implementation(const FHitResult& Hit)
 	}
 
 	if (Owner) {
-		Owner->DoFire();
+		Owner->PlayMontage(FireMontage);
 	}
 }
 
@@ -160,6 +125,7 @@ void AFPSHeroWeapon::SingleFire()
 {
 	CurrentFiredAmmo++;
 	if (Owner) {
+		// #TODO 在第三人称下用枪口延伸
 		// 得到摄像机的位置和朝向
 		FVector eyeLoc;
 		FRotator eyeRot;

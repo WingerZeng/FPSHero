@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "FPSHeroWeaponBase.h"
 #include "FPSHeroWeapon.generated.h"
 
 class USkeletalMeshComponent;
@@ -13,33 +14,18 @@ class USoundBase;
 class UFPSHeroRecoilBase;
 struct FHitResult;
 
-UENUM()
-enum class FireMode
-{
-	None = 0,
-	Single = 1,
-	Auto = 2
-};
-
-
 UCLASS(BlueprintType)
-class FPSHERO_API AFPSHeroWeapon : public AActor
+class FPSHERO_API AFPSHeroWeapon : public AFPSHeroWeaponBase
 {
 	GENERATED_BODY()
 
 public:
 	AFPSHeroWeapon();
 
-	virtual void BeginPlay() override;
-
 	virtual void Tick(float DeltaSeconds) override;
 
-	void SetOwner(AFPSHeroCharacter* MyOwner);
-
-	void SwitchFireMode();
-
 	void PlayFireEffect();
-
+	
 protected:
 	virtual void SingleFire();
 
@@ -48,11 +34,9 @@ protected:
 public:
 	/* Blueprint Methods */
 
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	virtual void Fire();
+	virtual void Fire() override;
 
-	UFUNCTION(BlueprintCallable, Category = "Weapon")
-	virtual void EndFire();
+	virtual void EndFire(EFireEndReason Reason = EFireEndReason::MOUSE_REALEASE) override;
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapon")
 	void dealHit(const FHitResult& Hit);
@@ -64,12 +48,6 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 		float ShootIntervalSecond;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-		FireMode Mode;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-		bool IsFireModeLocked;
 
 	UPROPERTY(EditDefaultsOnly, Instanced, Category = "Recoil")
 		UFPSHeroRecoilBase* RecoilInstance;
@@ -89,24 +67,19 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Effect")
 	USoundBase* FireSound;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+		UAnimMontage* FireMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Damage")
 		TSubclassOf<UDamageType> DamageType;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	UPROPERTY(EditDefaultsOnly, Category = "Damage")
 		float BodyDamage;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+	UPROPERTY(EditDefaultsOnly, Category = "Damage")
 		float HeadDamage;
 
-
 protected:
-	UPROPERTY(EditAnywhere, Category = "Component")
-		USkeletalMeshComponent* MeshComp;
-
-	UPROPERTY(VisibleAnywhere, Category = "Component")
-		USceneComponent* Root;
-
-	AFPSHeroCharacter* Owner = nullptr;
 
 	//float FireTimer = 0;
 	FTimerHandle FireTimer;

@@ -3,8 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FPSHero.h"
 #include "GameFramework/Character.h"
-#include "FPSHeroWeapon.h"
+#include "FPSHeroWeaponBase.h"
+#include "Containers/Map.h"
+#include "Containers/Array.h"
 #include "FPSHeroCharacter.generated.h"
 
 class UInputComponent;
@@ -16,14 +19,62 @@ class AFPSHeroCharacter : public ACharacter
 
 public:
 	AFPSHeroCharacter();
+	
+	UFUNCTION(BlueprintCallable)
+	AFPSHeroWeaponBase* GetWeapon();
 
-	AFPSHeroWeapon* GetWeapon();
+	//#TODO 捡武器时有bug
+
+	//#TODO 武器的动画系统
+	UFUNCTION(BlueprintCallable)
+		void GripWeapon(TSubclassOf<AFPSHeroWeaponBase> GrappedWeaponType);
 
 	UFUNCTION(BlueprintCallable)
-		void GrapWeapon(TSubclassOf<AFPSHeroWeapon> GrappedWeaponType);
+		void ThrowWeapon(EWeaponSlot WeaponSlot);
+
+	UFUNCTION(BlueprintCallable)
+		bool SwitchToWeaponSlot(EWeaponSlot WeaponSlot);
+
+	UFUNCTION(BlueprintCallable)
+		void RemoveWeapon(EWeaponSlot WeaponSlot);
+
+	UFUNCTION(BlueprintCallable)
+		void SetViewMode(EViewMode NewViewMode);
+
+	UFUNCTION(BlueprintCallable)
+		EViewMode GetViewMode();
+
+	UFUNCTION(BlueprintCallable)
+		void SwitchViewMode();
+
+	UFUNCTION(BlueprintCallable)
+		void UpdateAnimationClass();
+
+	UFUNCTION(BlueprintCallable)
+		UAnimInstance* GetAnimInstance();
+
+	UFUNCTION(BlueprintCallable)
+		void PlayMontage(UAnimMontage* Montage);
+
+	UFUNCTION(BlueprintCallable)
+		USkeletalMeshComponent* GetCurrentMesh();
+
+	UFUNCTION(BlueprintCallable)
+	EWeaponSlot GetWeaponTypeSlot(TSubclassOf<AFPSHeroWeaponBase> WeaponType);
+
+	UFUNCTION(BlueprintCallable)
+		bool IsFiring();
+
+	UFUNCTION(BlueprintCallable)
+		FRotator GetAimingRotation();
+
+	UFUNCTION(BlueprintCallable)
+		TSubclassOf<UAnimInstance> GetDefaultAnimClass(EViewMode ViewMode);
 
 protected:
-	virtual void BeginPlay();
+	virtual void BeginPlay() override;
+
+	virtual void Tick(float DeltaSeconds) override;
 
 public:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
@@ -34,36 +85,46 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
 	float BaseLookUpRate;
 
-	/** Gun muzzle's offset from the characters location */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Gameplay)
-	FVector GunOffset;
-
-	/** Projectile class to spawn */
-	UPROPERTY(EditDefaultsOnly, Category= "Weapon")
-	TSubclassOf<class AFPSHeroProjectile> ProjectileClass;
-
-	/** AnimMontage to play each time we fire */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
-	class UAnimMontage* FireAnimation;
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+	TArray<TSubclassOf<class AFPSHeroWeaponBase>> DefaultWeaponTypes;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-	TSubclassOf<class AFPSHeroWeapon> WeaponType;
+	EWeaponSlot DefaultWeaponSlot;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+	USoundBase* FireInterruptedSound;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Camera")
+		EViewMode DefaultViewMode;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+		TSubclassOf<UAnimInstance> DefaultFPSAnimClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+		TSubclassOf<UAnimInstance> DefaultTPSAnimClass;
 
 protected:
 	
 	/** Fires a projectile. */
 	void OnFire();
 
-	void EndFire();
+	void EndFire(EFireEndReason Reason = EFireEndReason::MOUSE_REALEASE);
+
+	void EndFireByRelease();
 
 	void SwitchFireMode();
+
+	void SwitchToWeaponSlot1();
+
+	void SwitchToWeaponSlot2();
 
 	/** Handles moving forward/backward */
 	void MoveForward(float Val);
 
 	/** Handles stafing movement, left and right */
 	void MoveRight(float Val);
+
+	bool IsViewBack();
 
 	/**
 	 * Called via input to turn at a given rate.
@@ -90,25 +151,51 @@ public:
 
 	virtual void GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const override;
 
-	void DoFire();
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+		bool bIsForceToFireOrientaion = false;
 
-private:
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+		TMap<EWeaponSlot, AFPSHeroWeaponBase*> Weapons;
+
+	UPROPERTY(VisibleAnywhere, Category = "Weapon")
+		FName FPSWeaponSocketName;
+
+	UPROPERTY(VisibleAnywhere, Category = "Weapon")
+		FName TPSWeaponSocketName;
+
+	EWeaponSlot GetWeaponSlot(AFPSHeroWeaponBase* Weapon);
+
+	EWeaponSlot GetNextWeaponSlot(EWeaponSlot WeaponSlot);
+
+	EWeaponSlot FindNextValidSlot(EWeaponSlot WeaponSlot);
+
+	bool FindWeapon(AFPSHeroWeaponBase* Weapon, EWeaponSlot& WeaponSlot);
+
+		 
 		/** Pawn mesh: 1st person view (arms; seen only by self) */
 	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
 		class USkeletalMeshComponent* Mesh1P;
 
-	UPROPERTY(VisibleDefaultsOnly)
-		class AFPSHeroWeapon* Weapon;
-
-	/** Location on gun mesh where projectiles should spawn. */
-	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
-		class USceneComponent* FP_MuzzleLocation;
-
-	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
-		FName WeaponSocketName;
-
 	/** First person camera */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 		class UCameraComponent* FirstPersonCameraComponent;
+
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+		class USceneComponent* FirstPersonCameraHolder;
+
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+		class USpringArmComponent* ThirdPersonSpringArmComp;
+
+	EViewMode ViewMode;
+
+	EWeaponSlot CurrentWeaponSlot;
+
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	bool bIsFiring;
+
+	bool bShouldInitAnim;
+
 };
+
 
