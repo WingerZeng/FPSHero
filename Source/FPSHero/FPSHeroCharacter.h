@@ -60,6 +60,9 @@ public:
 		USkeletalMeshComponent* GetCurrentMesh();
 
 	UFUNCTION(BlueprintCallable)
+		bool IsTurning();
+
+	UFUNCTION(BlueprintCallable)
 	EWeaponSlot GetWeaponTypeSlot(TSubclassOf<AFPSHeroWeaponBase> WeaponType);
 
 	UFUNCTION(BlueprintCallable)
@@ -196,6 +199,14 @@ protected:
 
 	bool bShouldInitAnim;
 
+	float TurnThresholdStartAngle = 80;
+
+	float TurnThresholdStopAngle = 30;
+
+	UPROPERTY(EditDefaultsOnly, Category = Movement)
+	float TurnRate = 10;
+
+	bool bIsTurning = false;
 };
 
 

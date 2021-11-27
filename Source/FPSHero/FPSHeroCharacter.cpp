@@ -272,6 +272,12 @@ USkeletalMeshComponent* AFPSHeroCharacter::GetCurrentMesh()
 	return Mesh1P;
 }
 
+bool AFPSHeroCharacter::IsTurning()
+{
+	return bIsTurning;
+}
+
+
 bool AFPSHeroCharacter::IsFiring()
 {
 	return bIsFiring;
@@ -317,6 +323,18 @@ void AFPSHeroCharacter::Tick(float DeltaSeconds)
 		EndFire(EFireEndReason::FACE_TO_BACK);
 		if (FireInterruptedSound)
 			UGameplayStatics::PlaySoundAtLocation(GetWorld(), FireInterruptedSound, GetActorLocation());
+	}
+	float DeltaYaw = UKismetMathLibrary::NormalizedDeltaRotator(GetControlRotation(), GetActorRotation()).Yaw;
+	if (abs(DeltaYaw) > TurnThresholdStartAngle || bIsTurning) {
+		if (abs(DeltaYaw) < TurnThresholdStopAngle) {
+			bIsTurning = false;
+		}
+		else {
+			float TurnYaw = UKismetMathLibrary::FInterpTo(0, DeltaYaw, DeltaSeconds, TurnRate);
+			FRotator TurnRotation(0, TurnYaw, 0);
+			SetActorRotation(TurnRotation + GetActorRotation());
+			bIsTurning = true;
+		}
 	}
 }
 
