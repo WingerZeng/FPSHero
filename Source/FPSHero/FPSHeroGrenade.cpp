@@ -53,53 +53,78 @@ void AFPSHeroGrenade::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UP
 void AFPSHeroGrenade::EndFire(EFireEndReason Reason)
 {
 	// Do Nothing if not ready
-	if (bReadyToThrow && Reason == EFireEndReason::MOUSE_REALEASE) {
-		StartRelease();
-	}
-	else {
-		Owner->GetAnimInstance()->Montage_Stop(0.4, ThrowMontage);
+	if(GetOwnerCharacter()->GetLocalRole() == ROLE_Authority){
+		if (bReadyToThrow && Reason == EFireEndReason::MOUSE_REALEASE) {
+			if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority)
+				StartRelease(); //#TODO0
+		}
+		else {
+			StopFireMontage();
+		}
 	}
 	bReadyToThrow = false;
 }
 
 void AFPSHeroGrenade::Fire()
 {
-	StartPrepare();
-}
-
-void AFPSHeroGrenade::SetWeaponActive_Implementation(bool bWeaponActive)
-{
-	Super::SetWeaponActive_Implementation(bWeaponActive);
-	if (!bWeaponActive) {
-		bReadyToThrow = false;
-		Owner->GetAnimInstance()->Montage_Stop(0.4, ThrowMontage);
+	if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
+		StartPrepare(); //#TODO0
 	}
 }
 
 void AFPSHeroGrenade::ThrowOut()
 {
-	this->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-	ProjectileMovement->bSimulationEnabled = true;
-	FVector EyeLoc;
-	FRotator EyeRot;
-	Owner->GetActorEyesViewPoint(EyeLoc, EyeRot);
-	FVector Front = EyeRot.Vector();
-	Front *= LauchVelocity;
-	ProjectileMovement->SetVelocityInLocalSpace(RootComponent->GetComponentTransform().InverseTransformVector(Front));
-	CollisionComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	CollisionComp->SetGenerateOverlapEvents(true);
-	GetWorld()->GetTimerManager().SetTimer(ExplodeTimer, this, &AFPSHeroGrenade::Explode, AutoExplodeTime, false, AutoExplodeTime);
+	if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
+		Detach();
+		SetReplicateMovement(true);
+		ProjectileMovement->bSimulationEnabled = true;
+		FVector EyeLoc;
+		FRotator EyeRot;
+		Owner->GetActorEyesViewPoint(EyeLoc, EyeRot);
+		FVector Front = EyeRot.Vector();
+		Front *= LauchVelocity;
+		ProjectileMovement->SetVelocityInLocalSpace(RootComponent->GetComponentTransform().InverseTransformVector(Front));
+		CollisionComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		CollisionComp->SetGenerateOverlapEvents(true);
+		GetWorld()->GetTimerManager().SetTimer(ExplodeTimer, this, &AFPSHeroGrenade::Explode, AutoExplodeTime, false, AutoExplodeTime);
+	}
+}
+
+void AFPSHeroGrenade::OnActiveStateChanged()
+{
+	Super::OnActiveStateChanged();
+	if (!bIsWeaponActive) {
+		bReadyToThrow = false;
+		Owner->GetAnimInstance()->Montage_Stop(0.4, ThrowMontage);
+	}
 }
 
 void AFPSHeroGrenade::Explode()
 {
-	if(DamageType)
-		UGameplayStatics::ApplyRadialDamageWithFalloff(GetWorld(), BaseDamage, 0, MeshComp->GetComponentLocation(), InnerRadius, OuterRadius, DamageFallOff, DamageType, TArray<AActor*>(), Owner, Owner->GetController(), ECC_MAX);
-	if(ExplodeEffect)
+	if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
+		PlayExplodeEffect();
+		if (DamageType)
+			UGameplayStatics::ApplyRadialDamageWithFalloff(GetWorld(), BaseDamage, 0, MeshComp->GetComponentLocation(), InnerRadius, OuterRadius, DamageFallOff, DamageType, TArray<AActor*>(), Owner, Owner->GetController(), ECC_MAX);
+		Destroy();
+	}
+}
+
+void AFPSHeroGrenade::Detach_Implementation()
+{
+	this->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+}
+
+void AFPSHeroGrenade::PlayExplodeEffect_Implementation()
+{
+	if (ExplodeEffect)
 		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), ExplodeEffect, MeshComp->GetComponentTransform());
-	if(ExplodeSound)
+	if (ExplodeSound)
 		UGameplayStatics::PlaySoundAtLocation(GetWorld(), ExplodeSound, MeshComp->GetComponentLocation());
-	Destroy();
+}
+
+void AFPSHeroGrenade::StopFireMontage_Implementation()
+{
+	Owner->GetAnimInstance()->Montage_Stop(0.4, ThrowMontage);
 }
 
 void AFPSHeroGrenade::ReadyToThrow()

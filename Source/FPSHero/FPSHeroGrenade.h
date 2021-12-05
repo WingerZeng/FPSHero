@@ -87,11 +87,11 @@ public:
 
 	virtual void Fire() override;
 
-	virtual void SetWeaponActive_Implementation(bool bWeaponActive) override;
-
 protected:
 	UFUNCTION(BlueprintCallable, Category = GamePlay)
 	void ThrowOut();
+
+	virtual void OnActiveStateChanged();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = GamePlay)
 		void StartPrepare();
@@ -103,6 +103,15 @@ protected:
 		void ReadyToThrow();
 
 	void Explode();
+
+	UFUNCTION(NetMulticast, Reliable)
+		void StopFireMontage();
+
+	UFUNCTION(NetMulticast, Reliable)
+		void PlayExplodeEffect();
+
+	UFUNCTION(NetMulticast, Reliable)
+		void Detach();
 
 private:
 	FTimerHandle ExplodeTimer;

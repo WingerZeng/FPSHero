@@ -13,8 +13,11 @@
 #include "ButtonBoxComponent.h"
 #include "FPSHeroCharacter.h"
 #include "FPSHeroRecoilBase.h"
+#include "Net/UnrealNetwork.h"
 AFPSHeroWeaponBase::AFPSHeroWeaponBase()
 {
+	SetReplicates(true);
+
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	this->SetRootComponent(Root);
 
@@ -33,12 +36,26 @@ AFPSHeroWeaponBase::AFPSHeroWeaponBase()
 void AFPSHeroWeaponBase::SetOwnerCharacter(AFPSHeroCharacter* MyOwner, EWeaponSlot WeaponSlot)
 {
 	this->Owner = MyOwner;
+	SetOwner(MyOwner);
 	SlotInOwner = WeaponSlot;
+}
+
+void AFPSHeroWeaponBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AFPSHeroWeaponBase, SlotInOwner);
+
+	DOREPLIFETIME(AFPSHeroWeaponBase, bIsWeaponActive);
+
+	DOREPLIFETIME(AFPSHeroWeaponBase, Owner);
+
+	DOREPLIFETIME(AFPSHeroWeaponBase, Mode)
 }
 
 void AFPSHeroWeaponBase::SwitchFireMode()
 {
-	if (!IsFireModeLocked) {
+	if (!IsFireModeLocked && GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
 		switch (Mode)
 		{
 		case FireMode::Auto:
@@ -54,9 +71,11 @@ void AFPSHeroWeaponBase::SwitchFireMode()
 	return;
 }
 
-void AFPSHeroWeaponBase::Throw()
+void AFPSHeroWeaponBase::Throw() 
 {
 	// #TODO2 Weapon should be thrown to ground in the future
+	SetOwnerCharacter(nullptr);
+	SetOwner(nullptr);
 	Destroy();
 }
 
@@ -77,6 +96,13 @@ TSubclassOf<UAnimInstance> AFPSHeroWeaponBase::GetAnimClass(EViewMode ViewMode)
 
 void AFPSHeroWeaponBase::SetWeaponActive_Implementation(bool bActive)
 {
-	MeshComp->SetVisibility(bActive, true);
-	bIsWeaponActive = bActive;
+	if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
+		bIsWeaponActive = bActive;
+		OnActiveStateChanged();
+	}
+}
+
+void AFPSHeroWeaponBase::OnActiveStateChanged()
+{
+	MeshComp->SetVisibility(bIsWeaponActive, true);
 }

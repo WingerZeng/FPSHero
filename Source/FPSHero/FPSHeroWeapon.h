@@ -25,6 +25,10 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	void PlayFireEffect();
+
+	void PlayHitEffect(const FHitResult& Hit);
+
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	
 protected:
 	virtual void SingleFire();
@@ -39,7 +43,7 @@ public:
 	virtual void EndFire(EFireEndReason Reason = EFireEndReason::MOUSE_REALEASE) override;
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapon")
-	void dealHit(const FHitResult& Hit);
+	void DealHit(const FHitResult& Hit);
 
 	/* Blueprint Attributes */
 
@@ -94,5 +98,9 @@ protected:
 	float PitchOffset = 0, YawOffset = 0;
 	// 记录停止开火时的镜头偏移
 	float PitchOffsetWhenStop = 0, YawOffsetWhenStop = 0;
+
+	UPROPERTY(ReplicatedUsing = OnRep_LastHitResult)
+		FHitResult LastHitResult;
+	void OnRep_LastHitResult();
 };
 

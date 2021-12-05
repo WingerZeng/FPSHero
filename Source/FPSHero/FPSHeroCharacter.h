@@ -22,20 +22,17 @@ public:
 	UFUNCTION(BlueprintCallable)
 	AFPSHeroWeaponBase* GetWeapon();
 
-	//#TODO 捡武器时有bug
-
-	//#TODO 武器的动画系统
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(Server, BlueprintCallable, NetMulticast, Reliable)
 		void GripWeapon(TSubclassOf<AFPSHeroWeaponBase> GrappedWeaponType);
 
-	UFUNCTION(BlueprintCallable)
-		void ThrowWeapon(EWeaponSlot WeaponSlot);
+	UFUNCTION(Server, BlueprintCallable)
+		void ThrowWeapon(EWeaponSlot WeaponSlot, bool bShouldChangeWeaponAuto = false);
 
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(Server, BlueprintCallable)
 		bool SwitchToWeaponSlot(EWeaponSlot WeaponSlot);
 
-	UFUNCTION(BlueprintCallable)
-		void RemoveWeapon(EWeaponSlot WeaponSlot);
+	//UFUNCTION(BlueprintCallable)
+	//	void RemoveWeapon(EWeaponSlot WeaponSlot);
 
 	UFUNCTION(BlueprintCallable)
 		void SetViewMode(EViewMode NewViewMode);
@@ -73,6 +70,24 @@ public:
 	UFUNCTION(BlueprintCallable)
 		TSubclassOf<UAnimInstance> GetDefaultAnimClass(EViewMode ViewMode);
 
+	UFUNCTION(BlueprintCallable)
+		float GetHealth();
+
+	UFUNCTION(BlueprintCallable)
+		void SetHealth(float Health);
+
+	UFUNCTION(BlueprintCallable)
+		float GetAttack();
+
+	UFUNCTION(BlueprintCallable)
+		void SetAttack(float NewAttack);
+
+	UFUNCTION(BlueprintCallable)
+		float GetDefence();
+
+	UFUNCTION(BlueprintCallable)
+		void SetDefence(float NewDefence);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -93,9 +108,6 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 	EWeaponSlot DefaultWeaponSlot;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-	USoundBase* FireInterruptedSound;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Camera")
 		EViewMode DefaultViewMode;
 
@@ -112,8 +124,25 @@ protected:
 
 	void EndFire(EFireEndReason Reason = EFireEndReason::MOUSE_REALEASE);
 
+	void OnFireButtonPress();
+
+	void OnFireButtonRelease();
+
+	UFUNCTION(Server, Reliable)
+	void OnFireServer();
+
+	UFUNCTION(Server, Reliable)
+	void EndFireServer(EFireEndReason Reason = EFireEndReason::MOUSE_REALEASE);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void OnFireMulticast();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void EndFireMulticast(EFireEndReason Reason = EFireEndReason::MOUSE_REALEASE);
+
 	void EndFireByRelease();
 
+	UFUNCTION(Server, Reliable)
 	void SwitchFireMode();
 
 	void SwitchToWeaponSlot1();
@@ -146,6 +175,7 @@ protected:
 	// End of APawn interface
 
 public:
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	/** Returns Mesh1P subobject **/
 	FORCEINLINE class USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
 	/** Returns FirstPersonCameraComponent subobject **/
@@ -157,7 +187,8 @@ public:
 		bool bIsForceToFireOrientaion = false;
 
 protected:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly)
 		TMap<EWeaponSlot, AFPSHeroWeaponBase*> Weapons;
 
 	UPROPERTY(VisibleAnywhere, Category = "Weapon")
@@ -172,8 +203,13 @@ protected:
 
 	EWeaponSlot FindNextValidSlot(EWeaponSlot WeaponSlot);
 
-	bool FindWeapon(AFPSHeroWeaponBase* Weapon, EWeaponSlot& WeaponSlot);
+	virtual void OnHealthUpdate();
 
+	virtual void OnCurrentWeaponUpdate();
+
+	virtual void OnDie();
+
+	bool FindWeapon(AFPSHeroWeaponBase* Weapon, EWeaponSlot& WeaponSlot);
 		 
 		/** Pawn mesh: 1st person view (arms; seen only by self) */
 	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
@@ -191,7 +227,10 @@ protected:
 
 	EViewMode ViewMode;
 
+	UFUNCTION(ReplicatedUsing = OnRep_CurrentWeaponSlot)
 	EWeaponSlot CurrentWeaponSlot;
+
+	void OnRep_CurrentWeaponSlot();
 
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	bool bIsFiring;
@@ -205,7 +244,29 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = Movement)
 	float TurnRate = 10;
 
+	UPROPERTY(Replicated)
 	bool bIsTurning = false;
+
+	// Attributes
+	UPROPERTY(EditDefaultsOnly, Category = BaseAttributes)
+	float MaxHealth;
+
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
+		float CurrentHealth;
+
+	UPROPERTY(EditDefaultsOnly, Category = BaseAttributes)
+		float DefaultAttack;
+
+	UPROPERTY(Replicated)
+		float Attack;
+
+	UPROPERTY(EditDefaultsOnly, Category = BaseAttributes)
+		float DefaultDefence;
+
+	UPROPERTY(Replicated)
+		float Defence;
+
+	void OnRep_CurrentHealth();
 };
 
 

@@ -33,6 +33,8 @@ public:
 
 	void SetOwnerCharacter(AFPSHeroCharacter* MyOwner, EWeaponSlot WeaponSlot);
 
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	void SwitchFireMode();
 	
 	UFUNCTION(BlueprintNativeEvent)
@@ -57,33 +59,23 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		TSubclassOf<UAnimInstance> GetAnimClass(EViewMode ViewMode);
-public:
-
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-		FireMode Mode;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-		bool IsFireModeLocked;
 
 protected:
 	virtual void SetWeaponActive_Implementation(bool bActive);
 
-	UPROPERTY(EditAnywhere, Category = "Component")
+	virtual void OnActiveStateChanged();
+
+	UPROPERTY(EditDefaultsOnly, Category = "Component")
 	USkeletalMeshComponent* MeshComp;
 
-	UPROPERTY(VisibleAnywhere, Category = "Component")
+	UPROPERTY(EditDefaultsOnly, Category = "Component")
 	USceneComponent* Root;
 
-	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 	FName LeftHandSocketName;
 
-	AFPSHeroCharacter* Owner = nullptr;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-	bool ShouldHoldByTwoHands;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
-		EWeaponSlot SlotInOwner;
+		bool ShouldHoldByTwoHands;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animation")
 		TSubclassOf<UAnimInstance> AnimClassFPS;
@@ -91,6 +83,18 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animation")
 		TSubclassOf<UAnimInstance> AnimClassTPS;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	bool bIsWeaponActive = false;
+	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+		EWeaponSlot SlotInOwner;
+
+	UPROPERTY(Replicated)
+		AFPSHeroCharacter* Owner = nullptr;
+
+	UPROPERTY(ReplicatedUsing = OnActiveStateChanged, VisibleAnywhere, BlueprintReadOnly)
+		bool bIsWeaponActive = false;
+
+	UPROPERTY(Replicated, VisibleAnywhere, Category = "Weapon")
+		FireMode Mode;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+		bool IsFireModeLocked;
 };
