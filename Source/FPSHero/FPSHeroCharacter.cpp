@@ -16,6 +16,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Math/UnrealMathUtility.h"
 #include "Net/UnrealNetwork.h"
+#include "FPSHeroGameStateBase.h"
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
 void AFPSHeroCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -25,16 +26,20 @@ void AFPSHeroCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(AFPSHeroCharacter, Attack);
 	DOREPLIFETIME(AFPSHeroCharacter, Defence);
 	DOREPLIFETIME(AFPSHeroCharacter, bIsTurning);
-	DOREPLIFETIME(AFPSHeroCharacter, bIsFiring);
 	DOREPLIFETIME(AFPSHeroCharacter, Weapons);
 	DOREPLIFETIME(AFPSHeroCharacter, CurrentWeaponSlot);
+	DOREPLIFETIME(AFPSHeroCharacter, bInitialized);
 }
 
 void AFPSHeroCharacter::GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const
 {
-	auto controller = Cast<APlayerController>(GetController());
-	OutLocation = controller->PlayerCameraManager->GetCameraLocation();
-	OutRotation = controller->PlayerCameraManager->GetCameraRotation();
+	OutLocation = FirstPersonCameraComponent->GetComponentLocation();
+	OutRotation = FirstPersonCameraComponent->GetComponentRotation();
+}
+
+void AFPSHeroCharacter::OnRep_Weapons()
+{
+	OnWeaponUpdate();
 }
 
 EWeaponSlot AFPSHeroCharacter::GetWeaponSlot(AFPSHeroWeaponBase* Weapon)
@@ -59,11 +64,23 @@ EWeaponSlot AFPSHeroCharacter::GetNextWeaponSlot(EWeaponSlot WeaponSlot)
 	return EWeaponSlot::GRENADE_SLOT;
 }
 
-EWeaponSlot AFPSHeroCharacter::FindNextValidSlot(EWeaponSlot WeaponSlot)
+EWeaponSlot AFPSHeroCharacter::FindValidSlotFromSlot(EWeaponSlot WeaponSlot)
 {
 	EWeaponSlot InitSlot = WeaponSlot;
 	do {
-		if (Weapons[WeaponSlot] && Weapons[WeaponSlot]->IsValidLowLevel())
+		if (GetWeapon(WeaponSlot) && GetWeapon(WeaponSlot)->IsValidLowLevel())
+			return WeaponSlot;
+		WeaponSlot = GetNextWeaponSlot(WeaponSlot);
+	} while (WeaponSlot != InitSlot);
+	return WeaponSlot;
+}
+
+EWeaponSlot AFPSHeroCharacter::FindValidSlotFromNextSlot(EWeaponSlot WeaponSlot)
+{
+	EWeaponSlot InitSlot = GetNextWeaponSlot(WeaponSlot);
+	WeaponSlot = InitSlot;
+	do {
+		if (GetWeapon(WeaponSlot) && GetWeapon(WeaponSlot)->IsValidLowLevel())
 			return WeaponSlot;
 		WeaponSlot = GetNextWeaponSlot(WeaponSlot);
 	} while (WeaponSlot != InitSlot);
@@ -77,45 +94,57 @@ void AFPSHeroCharacter::OnHealthUpdate()
 		OnDie();
 }
 
-void AFPSHeroCharacter::OnCurrentWeaponUpdate()
+void AFPSHeroCharacter::OnWeaponUpdate()
 {
-	if (!Weapons[CurrentWeaponSlot]) {
+	for (const auto& Weapon : Weapons) {
+		if(Weapon)
+			Weapon->DetachFromCharacter();
+	}
+	if (!GetCurrentWeapon()) {
 		return;
 	}
-	for (const auto& Weapon : Weapons) {
-		Weapons[CurrentWeaponSlot]->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-	}
-
-	FAttachmentTransformRules rule(EAttachmentRule::SnapToTarget, true);
-	Weapons[CurrentWeaponSlot]->AttachToComponent(GetCurrentMesh(), rule, (ViewMode == EViewMode::FIRST_PERSON ? FPSWeaponSocketName : TPSWeaponSocketName));
+	FName WeaponSocketName;
+	GetCurrentWeapon()->AttachToCharacter(GetCurrentMesh(), (GetDisplayViewMode() == EViewMode::FIRST_PERSON ? FPSWeaponSocketName : TPSWeaponSocketName));
 	UpdateAnimationClass();
 }
 
 void AFPSHeroCharacter::OnDie()
 {
-	//#TODO0
+	AFPSHeroGameStateBase* GameState = Cast<AFPSHeroGameStateBase>(GetWorld()->GetGameState());
+	if (GameState)
+		GameState->OnCharacterDie(this);
 }
 
-bool AFPSHeroCharacter::FindWeapon(AFPSHeroWeaponBase* Weapon, EWeaponSlot& WeaponSlot)
+bool AFPSHeroCharacter::FindWeapon(AFPSHeroWeaponBase* const Weapon, EWeaponSlot& WeaponSlot)
 {
-	for (const auto& WeaponIt : Weapons) {
-		if (WeaponIt.Value == Weapon)
-		{
-			WeaponSlot = WeaponIt.Key;
+	for (int i = 0; i<int(EWeaponSlot::MAX_SLOT); i++) {
+		if (GetWeapon(EWeaponSlot(i)) == Weapon) {
+			WeaponSlot = EWeaponSlot(i);
 			return true;
 		}
 	}
 	return false;
 }
 
+void AFPSHeroCharacter::Initialize()
+{
+	SetViewMode(ViewMode);
+	OnWeaponUpdate();
+}
+
 void AFPSHeroCharacter::OnRep_CurrentWeaponSlot()
 {
-	OnCurrentWeaponUpdate();
+	OnWeaponUpdate();
 }
 
 void AFPSHeroCharacter::OnRep_CurrentHealth()
 {
 	OnHealthUpdate();
+}
+
+void AFPSHeroCharacter::OnRep_Initialzed()
+{
+	Initialize();
 }
 
 EWeaponSlot AFPSHeroCharacter::GetWeaponTypeSlot(TSubclassOf<AFPSHeroWeaponBase> WeaponType)
@@ -132,7 +161,9 @@ EWeaponSlot AFPSHeroCharacter::GetWeaponTypeSlot(TSubclassOf<AFPSHeroWeaponBase>
 }
 
 AFPSHeroCharacter::AFPSHeroCharacter()
-{	SetReplicates(true);	SetReplicatingMovement(true);
+{
+	bReplicates = true;
+	SetReplicatingMovement(true);
 
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(55.f, 96.0f);
@@ -144,13 +175,14 @@ AFPSHeroCharacter::AFPSHeroCharacter()
 	// Create a CameraComponent	
 	FirstPersonCameraHolder = CreateDefaultSubobject<USceneComponent>(TEXT("FirstPersonCameraHolder"));
 	FirstPersonCameraHolder->SetupAttachment(GetCapsuleComponent());
-	FirstPersonCameraHolder->SetRelativeLocation(FVector(-39.56f, 1.75f, 64.f)); // Position the camera
+	FirstPersonCameraHolder->SetRelativeLocation(FVector(0.0f, 0.0f, 64.f)); // Position the camera
 
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;
 	FirstPersonCameraComponent->SetupAttachment(FirstPersonCameraHolder);
 
 	ThirdPersonSpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("ThirdPersonSpringArm"));
+	ThirdPersonSpringArmComp->bUsePawnControlRotation = false;
 	ThirdPersonSpringArmComp->SetupAttachment(GetCapsuleComponent());
 
 	// Create a mesh component that will be used when being viewed from a '1st person' view (when controlling this pawn)
@@ -158,88 +190,124 @@ AFPSHeroCharacter::AFPSHeroCharacter()
 	Mesh1P->SetOnlyOwnerSee(true);
 	Mesh1P->SetupAttachment(FirstPersonCameraComponent);
 	Mesh1P->bCastDynamicShadow = false;
+	Mesh1P->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh1P->CastShadow = false;
 	Mesh1P->SetRelativeRotation(FRotator(1.9f, -19.19f, 5.2f));
 	Mesh1P->SetRelativeLocation(FVector(-0.5f, -4.4f, -155.7f));
+
+	GetMesh()->SetCollisionProfileName("CharacterMesh");
 
 	FPSWeaponSocketName = "FPSGripPoint";
 	TPSWeaponSocketName = "TPSGripPoint";
 	DefaultViewMode = EViewMode::FIRST_PERSON;
 	DefaultWeaponSlot = EWeaponSlot::RIFLE_SLOT;
-	Weapons.Add(EWeaponSlot::GRENADE_SLOT, nullptr);
-	Weapons.Add(EWeaponSlot::RIFLE_SLOT, nullptr);
+	for (int i = 0; i<int(EWeaponSlot::MAX_SLOT); i++)
+		Weapons.Push(nullptr);
 	bShouldInitAnim = false;
 
 	MaxHealth = 100.f;
 	DefaultDefence = 0.0f;
 	DefaultAttack = 0.0f;
 
+	GetCapsuleComponent()->SetCollisionResponseToChannel(TRACECHANNEL_WEAPON, ECollisionResponse::ECR_Ignore);
+	bInitialized = false;
+
+	CurrentWeaponSlot = EWeaponSlot::MAX_SLOT;
+
 	this->PrimaryActorTick.bCanEverTick = true;
 }
 
-AFPSHeroWeaponBase* AFPSHeroCharacter::GetWeapon()
+AFPSHeroWeaponBase* AFPSHeroCharacter::GetCurrentWeapon()
 {
-	if (!Weapons.Find(CurrentWeaponSlot) || !Weapons[CurrentWeaponSlot]->IsValidLowLevel())
+	return GetWeapon(CurrentWeaponSlot);
+}
+
+AFPSHeroWeaponBase* AFPSHeroCharacter::GetWeapon(EWeaponSlot Slot)
+{
+	if (int(Slot) >= Weapons.Num() || int(Slot) < 0)
 		return nullptr;
-	return Weapons[CurrentWeaponSlot];
+	return Weapons[int(Slot)];
+}
+
+void AFPSHeroCharacter::SetWeapon(EWeaponSlot Slot, AFPSHeroWeaponBase* Weapon)
+{
+	if (int(Slot) >= Weapons.Num() || int(Slot) < 0)
+		return;
+	Weapons[int(Slot)] = Weapon;
 }
 
 void AFPSHeroCharacter::GripWeapon_Implementation(TSubclassOf<class AFPSHeroWeaponBase> GrappedWeaponType)
 {
 	if (GrappedWeaponType && GetLocalRole() == ROLE_Authority) {
 		EWeaponSlot ThisSlot = GetWeaponTypeSlot(GrappedWeaponType);
+		if (ThisSlot == EWeaponSlot::MAX_SLOT)
+			return;
 		ThrowWeapon(ThisSlot);
 		FActorSpawnParameters paras;
 		paras.Owner = this;
 		paras.Instigator = this;
 		paras.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		Weapons[ThisSlot] = GetWorld()->SpawnActor<AFPSHeroWeaponBase>(GrappedWeaponType, FTransform(), paras);
-		Weapons[ThisSlot]->SetOwnerCharacter(this, ThisSlot);
-		Weapons[ThisSlot]->SetOwner(this);
+		SetWeapon(ThisSlot, GetWorld()->SpawnActor<AFPSHeroWeaponBase>(GrappedWeaponType, FTransform(), paras));
+		GetWeapon(ThisSlot)->SetOwnerCharacter(this, ThisSlot);
+		GetWeapon(ThisSlot)->SetOwner(this);
 
 		if (ThisSlot == CurrentWeaponSlot)
 		{
 			SwitchToWeaponSlot(ThisSlot);
 		}
 		else {
-			Weapons[ThisSlot]->SetWeaponActive(false);
+			GetWeapon(ThisSlot)->SetWeaponActive(false);
 		}
 	}
 }
 
 void AFPSHeroCharacter::ThrowWeapon_Implementation(EWeaponSlot WeaponSlot, bool bShouldChangeWeaponAuto)
 {
-	if (GetLocalRole() == ROLE_Authority && Weapons[WeaponSlot]) {
-		Weapons[WeaponSlot]->Throw();
-		Weapons[WeaponSlot] = nullptr;
+	if (GetLocalRole() == ROLE_Authority && GetWeapon(WeaponSlot)) {
+		GetWeapon(WeaponSlot)->Throw();
+		SetWeapon(WeaponSlot, nullptr);
 		if (WeaponSlot == CurrentWeaponSlot && bShouldChangeWeaponAuto)
-			SwitchToWeaponSlot(FindNextValidSlot(CurrentWeaponSlot));
+			SwitchToWeaponSlot(FindValidSlotFromSlot(CurrentWeaponSlot));
 	}
 }
 
-bool AFPSHeroCharacter::SwitchToWeaponSlot_Implementation(EWeaponSlot WeaponSlot)
+void AFPSHeroCharacter::SwitchToWeaponSlot(EWeaponSlot WeaponSlot)
 {
-	if (Weapons[WeaponSlot] && GetLocalRole() == ROLE_Authority) {
+	if (GetWeapon(WeaponSlot) && GetLocalRole() == ROLE_Authority) {
 		if (bIsFiring)
 			EndFireServer(EFireEndReason::SWAP_WEAPON);
-		if (Weapons[CurrentWeaponSlot]) {
-			Weapons[CurrentWeaponSlot]->SetWeaponActive(false);
+		if (GetCurrentWeapon()) {
+			GetCurrentWeapon()->SetWeaponActive(false);
 		}
 		CurrentWeaponSlot = WeaponSlot;
-		OnCurrentWeaponUpdate();
-		return true;
+		GetCurrentWeapon()->SetWeaponActive(true);
+		
+		OnWeaponUpdate();
 	}
+}
+
+void AFPSHeroCharacter::SetViewModeServer_Implementation(EViewMode NewViewMode)
+{
+	//#TODO0 Do Some Check
+	if (bIsFiring)
+		EndFireServer(EFireEndReason::SWITCH_VIEW_MODE);
+	// æ›´æ–°æ‰€æœ‰ä¸»æœºçš„è§†è§’
+	SetViewModeNetMulticast(NewViewMode);
+}
+
+void AFPSHeroCharacter::SetViewModeNetMulticast_Implementation(EViewMode NewViewMode)
+{
+	SetViewMode(NewViewMode);
 }
 
 void AFPSHeroCharacter::SetViewMode(EViewMode NewViewMode)
 {
-	// Èç¹ûÊÇÆäËûÖ÷»ú£¬ÏÞ¶¨ÎªµÚÈýÈË³ÆÊÓ½Ç
-	if (!IsLocallyControlled())
-		NewViewMode = EViewMode::THIRD_PERSON;
 	ViewMode = NewViewMode;
 	if (ViewMode == EViewMode::FIRST_PERSON) {
-		GetMesh()->SetVisibility(false);
-		Mesh1P->SetVisibility(true);
+		if (IsLocallyControlled()) {
+			GetMesh()->SetVisibility(false);
+			Mesh1P->SetVisibility(true);
+		}
 		ThirdPersonSpringArmComp->bUsePawnControlRotation = false;
 		ThirdPersonSpringArmComp->SetRelativeRotation(FRotator());
 		FirstPersonCameraComponent->ResetRelativeTransform();
@@ -247,16 +315,17 @@ void AFPSHeroCharacter::SetViewMode(EViewMode NewViewMode)
 		FirstPersonCameraComponent->bUsePawnControlRotation = true;
 	}
 	else if (ViewMode == EViewMode::THIRD_PERSON) {
-		Mesh1P->SetVisibility(false);
-		GetMesh()->SetVisibility(true);
+		if (IsLocallyControlled()) {
+			Mesh1P->SetVisibility(false);
+			GetMesh()->SetVisibility(true);
+		}
 		FirstPersonCameraComponent->bUsePawnControlRotation = false;
 		FirstPersonCameraComponent->ResetRelativeTransform();
 		ThirdPersonSpringArmComp->SetRelativeRotation(FRotator());
 		FirstPersonCameraComponent->AttachToComponent(ThirdPersonSpringArmComp, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		ThirdPersonSpringArmComp->bUsePawnControlRotation = true;
 	}
-	SwitchToWeaponSlot(CurrentWeaponSlot);
-	bIsFiring = false;
+	OnWeaponUpdate();
 }
 
 EViewMode AFPSHeroCharacter::GetViewMode()
@@ -264,13 +333,21 @@ EViewMode AFPSHeroCharacter::GetViewMode()
 	return ViewMode;
 }
 
+EViewMode AFPSHeroCharacter::GetDisplayViewMode()
+{
+	if(IsLocallyControlled())
+		return ViewMode;
+	else
+		return EViewMode::THIRD_PERSON;
+}
+
 void AFPSHeroCharacter::SwitchViewMode()
 {
 	if (ViewMode == EViewMode::FIRST_PERSON) {
-		SetViewMode(EViewMode::THIRD_PERSON);
+		SetViewModeServer(EViewMode::THIRD_PERSON);
 	}
 	else if (ViewMode == EViewMode::THIRD_PERSON) {
-		SetViewMode(EViewMode::FIRST_PERSON);
+		SetViewModeServer(EViewMode::FIRST_PERSON);
 	}
 }
 
@@ -279,13 +356,14 @@ void AFPSHeroCharacter::UpdateAnimationClass()
 	bShouldInitAnim = true;
 	if (GetCurrentMesh()->IsPostEvaluatingAnimation())
 		return;
-	AFPSHeroWeaponBase* CurWeapon = GetWeapon();
+	AFPSHeroWeaponBase* CurWeapon = GetCurrentWeapon();
 	TSubclassOf<UAnimInstance> NewAnim;
 	if (CurWeapon) {
-		NewAnim = CurWeapon->GetAnimClass(ViewMode);
+		NewAnim = CurWeapon->GetAnimClass(GetDisplayViewMode());
 	}
+	
 	if (!NewAnim) {
-		NewAnim = GetDefaultAnimClass(ViewMode);
+		NewAnim = GetDefaultAnimClass(GetDisplayViewMode());
 	}
 	if (NewAnim) {
 		GetCurrentMesh()->SetAnimClass(NewAnim);
@@ -295,10 +373,10 @@ void AFPSHeroCharacter::UpdateAnimationClass()
 
 UAnimInstance* AFPSHeroCharacter::GetAnimInstance()
 {
-	if (ViewMode == EViewMode::FIRST_PERSON) {
+	if (GetDisplayViewMode() == EViewMode::FIRST_PERSON) {
 		return Mesh1P->GetAnimInstance();
 	}
-	else if (ViewMode == EViewMode::THIRD_PERSON) {
+	else if (GetDisplayViewMode() == EViewMode::THIRD_PERSON) {
 		return GetMesh()->GetAnimInstance();
 	}
 	return Mesh1P->GetAnimInstance();
@@ -319,10 +397,10 @@ void AFPSHeroCharacter::PlayMontage(UAnimMontage* Montage)
 
 USkeletalMeshComponent* AFPSHeroCharacter::GetCurrentMesh()
 {
-	if (ViewMode == EViewMode::FIRST_PERSON) {
+	if (GetDisplayViewMode() == EViewMode::FIRST_PERSON) {
 		return Mesh1P;
 	}
-	else if (ViewMode == EViewMode::THIRD_PERSON) {
+	else if (GetDisplayViewMode() == EViewMode::THIRD_PERSON) {
 		return GetMesh();
 	}
 	return Mesh1P;
@@ -341,10 +419,9 @@ bool AFPSHeroCharacter::IsFiring()
 
 FRotator AFPSHeroCharacter::GetAimingRotation()
 {
-	//#TODO Í¬²½ControlRotation
 	if (ViewMode == EViewMode::FIRST_PERSON)
-		return GetControlRotation();
-	FRotator DeltaRot = UKismetMathLibrary::NormalizedDeltaRotator(GetControlRotation(), GetActorRotation());
+		return GetViewRotation();
+	FRotator DeltaRot = UKismetMathLibrary::NormalizedDeltaRotator(GetViewRotation(), GetActorRotation());
 	DeltaRot.Yaw = UKismetMathLibrary::FClamp(DeltaRot.Yaw, -90.0f, 90.0f);
 	return DeltaRot + GetActorRotation();
 }
@@ -393,6 +470,29 @@ void AFPSHeroCharacter::SetDefence(float NewDefence)
 		Defence = FMath::Max(0.0f, NewDefence);
 }
 
+float AFPSHeroCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
+{
+	if (GetLocalRole() == ROLE_Authority) {
+		//#TODO1 é˜²å¾¡åŠ›ç³»ç»Ÿ
+		//#TODO1 EventInstigatorä½œä¸ºå¤åˆ¶å˜é‡ï¼Œéœ€è¦åœ¨è¯¥çŽ©å®¶HUDä¸­æ˜¾ç¤ºä¼¤å®³
+		SetHealth(GetHealth() - DamageAmount);
+		return DamageAmount;
+	}
+	return 0;
+}
+
+FRotator AFPSHeroCharacter::GetViewRotation() const
+{
+	if(GetLocalRole() == ENetRole::ROLE_Authority || IsLocallyControlled())
+		return Super::GetViewRotation();
+	return CharacterViewRotation;
+}
+
+FRotator AFPSHeroCharacter::GetCharacterViewRotation() const
+{
+	return GetViewRotation();
+}
+
 void AFPSHeroCharacter::BeginPlay()
 {
 	// Call the base class  
@@ -406,20 +506,32 @@ void AFPSHeroCharacter::BeginPlay()
 		for (const auto& WeaponType : DefaultWeaponTypes) {
 			GripWeapon(WeaponType);
 		}
-
-		SwitchToWeaponSlot(FindNextValidSlot(DefaultWeaponSlot));
+		SwitchToWeaponSlot(FindValidSlotFromSlot(DefaultWeaponSlot));
+		bInitialized = true;
+		Initialize();
 	}
-	SetViewMode(DefaultViewMode);
 }
 
 void AFPSHeroCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	// Update Camera Rotation on Server
+	if(GetLocalRole() == ROLE_Authority)
+	{
+		USceneComponent* CameraRotateComponent;
+		if(ViewMode == EViewMode::FIRST_PERSON)
+			CameraRotateComponent = FirstPersonCameraComponent;
+		else
+			CameraRotateComponent = ThirdPersonSpringArmComp;
+		CameraRotateComponent->SetWorldRotation(GetViewRotation());
+		SetCharacterViewRotation(GetViewRotation());
+	}
+
 	if (bShouldInitAnim)
 		UpdateAnimationClass();
 
 	if (GetLocalRole() == ROLE_Authority || IsLocallyControlled()) {
-		float DeltaYaw = UKismetMathLibrary::NormalizedDeltaRotator(GetControlRotation(), GetActorRotation()).Yaw;
+		float DeltaYaw = UKismetMathLibrary::NormalizedDeltaRotator(GetViewRotation(), GetActorRotation()).Yaw;
 		if (abs(DeltaYaw) > TurnThresholdStartAngle || bIsTurning) {
 			if (abs(DeltaYaw) < TurnThresholdStopAngle) {
 				bIsTurning = false;
@@ -465,8 +577,8 @@ void AFPSHeroCharacter::OnFire()
 	if (bIsFiring)
 		return;
 	bIsFiring = true;
-	if (Weapons[CurrentWeaponSlot]) {
-		Weapons[CurrentWeaponSlot]->Fire();
+	if (GetCurrentWeapon()) {
+		GetCurrentWeapon()->Fire();
 	}
 }
 
@@ -475,8 +587,8 @@ void AFPSHeroCharacter::EndFire(EFireEndReason Reason)
 	if (!bIsFiring)
 		return;
 	bIsFiring = false;
-	if (Weapons[CurrentWeaponSlot]) {
-		Weapons[CurrentWeaponSlot]->EndFire(Reason);
+	if (GetCurrentWeapon()) {
+		GetCurrentWeapon()->EndFire(Reason);
 	}
 }
 
@@ -520,30 +632,38 @@ void AFPSHeroCharacter::EndFireMulticast_Implementation(EFireEndReason Reason /*
 
 void AFPSHeroCharacter::SwitchFireMode_Implementation()
 {
-	if (Weapons[CurrentWeaponSlot] && GetLocalRole() == ROLE_Authority) {
-		Weapons[CurrentWeaponSlot]->SwitchFireMode();
+	if (GetCurrentWeapon() && GetLocalRole() == ROLE_Authority) {
+		GetCurrentWeapon()->SwitchFireMode();
 		EndFireServer(EFireEndReason::SWITCH_FIRE_MODE);
 	}
 }
 
 void AFPSHeroCharacter::SwitchToWeaponSlot1_Implementation()
 {
-	SwitchWeapon(EWeaponSlot::RIFLE_SLOT);
+	SwitchToWeaponSlot(EWeaponSlot::RIFLE_SLOT);
 }
 
 void AFPSHeroCharacter::SwitchToWeaponSlot2_Implementation()
 {
-	SwitchWeapon(EWeaponSlot::GRENADE_SLOT);
+	SwitchToWeaponSlot(EWeaponSlot::GRENADE_SLOT);
 }
 
-//void AFPSHeroCharacter::RemoveWeapon(EWeaponSlot WeaponSlot)
-//{
-//	Weapons[WeaponSlot] = nullptr;
-//	if (CurrentWeaponSlot == WeaponSlot) {
-//		WeaponSlot = FindNextValidSlot(WeaponSlot);
-//		SwitchToWeaponSlot(WeaponSlot);
-//	}
-//}
+void AFPSHeroCharacter::RemoveWeapon(EWeaponSlot WeaponSlot)
+{
+	SetWeapon(WeaponSlot, nullptr);
+	if (CurrentWeaponSlot == WeaponSlot) {
+		if (bIsFiring)
+			EndFireServer(EFireEndReason::REMOVE_WEAPON);
+		WeaponSlot = FindValidSlotFromNextSlot(WeaponSlot);
+		SwitchToWeaponSlot(WeaponSlot);
+	}
+}
+
+void AFPSHeroCharacter::SetCharacterViewRotation_Implementation(FRotator Rotator)
+{
+	if(GetLocalRole() != ENetRole::ROLE_Authority && !IsLocallyControlled())
+		CharacterViewRotation = Rotator;
+}
 
 void AFPSHeroCharacter::MoveForward(float Value)
 {

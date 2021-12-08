@@ -14,9 +14,11 @@
 #include "FPSHeroCharacter.h"
 #include "FPSHeroRecoilBase.h"
 #include "Net/UnrealNetwork.h"
+#include "Engine/Engine.h"
 AFPSHeroWeaponBase::AFPSHeroWeaponBase()
 {
-	SetReplicates(true);
+	bReplicates = true;
+	SetReplicateMovement(false);
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	this->SetRootComponent(Root);
@@ -27,15 +29,26 @@ AFPSHeroWeaponBase::AFPSHeroWeaponBase()
 	MeshComp->CastShadow = false;
 	MeshComp->SetupAttachment(Root);
 	MeshComp->SetSimulatePhysics(false);
+
+	//MeshCompForAttach = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Mesh"));
+	//MeshCompForAttach->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	//MeshCompForAttach->bCastDynamicShadow = false;
+	//MeshCompForAttach->CastShadow = false;
+	//MeshCompForAttach->SetupAttachment(Root);
+	//MeshCompForAttach->SetSimulatePhysics(false);
+	//MeshCompForAttach->SetVisibility(false);
+
 	LeftHandSocketName = "LeftHandSocket";
 	Mode = FireMode::Single;
 	IsFireModeLocked = false;
 	ShouldHoldByTwoHands = true;
+
+	this->PrimaryActorTick.bCanEverTick = true;
 }
 
 void AFPSHeroWeaponBase::SetOwnerCharacter(AFPSHeroCharacter* MyOwner, EWeaponSlot WeaponSlot)
 {
-	this->Owner = MyOwner;
+	this->OwnerCharacter = MyOwner;
 	SetOwner(MyOwner);
 	SlotInOwner = WeaponSlot;
 }
@@ -48,7 +61,7 @@ void AFPSHeroWeaponBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 
 	DOREPLIFETIME(AFPSHeroWeaponBase, bIsWeaponActive);
 
-	DOREPLIFETIME(AFPSHeroWeaponBase, Owner);
+	DOREPLIFETIME(AFPSHeroWeaponBase, OwnerCharacter);
 
 	DOREPLIFETIME(AFPSHeroWeaponBase, Mode)
 }
@@ -74,9 +87,14 @@ void AFPSHeroWeaponBase::SwitchFireMode()
 void AFPSHeroWeaponBase::Throw() 
 {
 	// #TODO2 Weapon should be thrown to ground in the future
-	SetOwnerCharacter(nullptr);
+	SetOwnerCharacter(nullptr, EWeaponSlot::MAX_SLOT);
 	SetOwner(nullptr);
 	Destroy();
+}
+
+void AFPSHeroWeaponBase::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
 }
 
 FVector AFPSHeroWeaponBase::GetLeftHandSocketPosition()
@@ -94,12 +112,29 @@ TSubclassOf<UAnimInstance> AFPSHeroWeaponBase::GetAnimClass(EViewMode ViewMode)
 	}
 }
 
+void AFPSHeroWeaponBase::DetachFromCharacterMulticast_Implementation()
+{
+	DetachFromCharacter();
+}
+
+void AFPSHeroWeaponBase::AttachToCharacter(USkeletalMeshComponent* Mesh, FName SocketName)
+{
+	FAttachmentTransformRules rule(EAttachmentRule::KeepRelative, true);
+	this->MeshComp->DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
+	this->MeshComp->AttachToComponent(Mesh, rule, SocketName);
+}
+
+void AFPSHeroWeaponBase::DetachFromCharacter()
+{
+	FAttachmentTransformRules rule(EAttachmentRule::KeepRelative, true);
+	this->MeshComp->DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
+	this->MeshComp->AttachToComponent(this->RootComponent, rule);
+}
+
 void AFPSHeroWeaponBase::SetWeaponActive_Implementation(bool bActive)
 {
-	if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
-		bIsWeaponActive = bActive;
-		OnActiveStateChanged();
-	}
+	bIsWeaponActive = bActive;
+	OnActiveStateChanged();
 }
 
 void AFPSHeroWeaponBase::OnActiveStateChanged()

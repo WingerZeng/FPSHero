@@ -20,25 +20,40 @@ public:
 	AFPSHeroCharacter();
 	
 	UFUNCTION(BlueprintCallable)
-	AFPSHeroWeaponBase* GetWeapon();
+	AFPSHeroWeaponBase* GetCurrentWeapon();
 
-	UFUNCTION(Server, BlueprintCallable, NetMulticast, Reliable)
+	UFUNCTION(BlueprintCallable)
+		AFPSHeroWeaponBase* GetWeapon(EWeaponSlot Slot);
+
+	UFUNCTION(BlueprintCallable)
+		void SetWeapon(EWeaponSlot Slot, AFPSHeroWeaponBase* Weapon);
+
+	UFUNCTION(Server, BlueprintCallable, Reliable)
 		void GripWeapon(TSubclassOf<AFPSHeroWeaponBase> GrappedWeaponType);
 
-	UFUNCTION(Server, BlueprintCallable)
+	UFUNCTION(Server, Reliable, BlueprintCallable)
 		void ThrowWeapon(EWeaponSlot WeaponSlot, bool bShouldChangeWeaponAuto = false);
 
-	UFUNCTION(Server, BlueprintCallable)
-		bool SwitchToWeaponSlot(EWeaponSlot WeaponSlot);
+	UFUNCTION()
+		void OnWeaponUpdate();
 
-	//UFUNCTION(BlueprintCallable)
-	//	void RemoveWeapon(EWeaponSlot WeaponSlot);
+	UFUNCTION(BlueprintAuthorityOnly, BlueprintCallable)
+		void SwitchToWeaponSlot(EWeaponSlot WeaponSlot);
 
-	UFUNCTION(BlueprintCallable)
-		void SetViewMode(EViewMode NewViewMode);
+	UFUNCTION(BlueprintAuthorityOnly, BlueprintCallable)
+		void RemoveWeapon(EWeaponSlot WeaponSlot);
 
-	UFUNCTION(BlueprintCallable)
-		EViewMode GetViewMode();
+	UFUNCTION(Server, Reliable, BlueprintCallable)
+		void SetViewModeServer(EViewMode NewViewMode);
+
+	UFUNCTION(NetMulticast, Reliable, BlueprintCallable)
+		void SetViewModeNetMulticast(EViewMode NewViewMode);
+
+	void SetViewMode(EViewMode NewViewMode);
+
+	EViewMode GetViewMode();
+
+	EViewMode GetDisplayViewMode();
 
 	UFUNCTION(BlueprintCallable)
 		void SwitchViewMode();
@@ -87,6 +102,13 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		void SetDefence(float NewDefence);
+
+	float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+
+	virtual FRotator GetViewRotation() const override;
+
+	UFUNCTION(BlueprintCallable)
+	FRotator GetCharacterViewRotation() const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -140,34 +162,44 @@ protected:
 	UFUNCTION(NetMulticast, Reliable)
 	void EndFireMulticast(EFireEndReason Reason = EFireEndReason::MOUSE_REALEASE);
 
-	void EndFireByRelease();
-
 	UFUNCTION(Server, Reliable)
 	void SwitchFireMode();
 
+	UFUNCTION(Server, Reliable)
 	void SwitchToWeaponSlot1();
 
+	UFUNCTION(Server, Reliable)
 	void SwitchToWeaponSlot2();
 
+	// Set View Rotation For Other Client
+	UFUNCTION(NetMulticast, Unreliable)
+	void SetCharacterViewRotation(FRotator Rotator);
+	
 	/** Handles moving forward/backward */
 	void MoveForward(float Val);
 
 	/** Handles stafing movement, left and right */
 	void MoveRight(float Val);
 
-	bool IsViewBack();
-
 	/**
 	 * Called via input to turn at a given rate.
 	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
 	 */
 	void TurnAtRate(float Rate);
+	// UFUNCTION(Server, Reliable)
+	// void TurnAtRateServer(float Rate);
+	// UFUNCTION(NetMulticast, Reliable)
+	// void TurnAtRateMulticast(float Rate);
 
 	/**
 	 * Called via input to turn look up/down at a given rate.
 	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
 	 */
 	void LookUpAtRate(float Rate);
+	// UFUNCTION(Server, Reliable)
+	// void LookUpAtRateServer(float Rate);
+	// UFUNCTION(NetMulticast, Reliable)
+	// void LookUpAtRateMulticast(float Rate);
 	
 protected:
 	// APawn interface
@@ -188,8 +220,10 @@ public:
 
 protected:
 
-	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly)
-		TMap<EWeaponSlot, AFPSHeroWeaponBase*> Weapons;
+	UPROPERTY(ReplicatedUsing = OnRep_Weapons, VisibleAnywhere, BlueprintReadOnly)
+		TArray<AFPSHeroWeaponBase*> Weapons;
+	UFUNCTION()
+		void OnRep_Weapons();
 
 	UPROPERTY(VisibleAnywhere, Category = "Weapon")
 		FName FPSWeaponSocketName;
@@ -201,15 +235,17 @@ protected:
 
 	EWeaponSlot GetNextWeaponSlot(EWeaponSlot WeaponSlot);
 
-	EWeaponSlot FindNextValidSlot(EWeaponSlot WeaponSlot);
+	EWeaponSlot FindValidSlotFromSlot(EWeaponSlot WeaponSlot);
+	
+	EWeaponSlot FindValidSlotFromNextSlot(EWeaponSlot WeaponSlot);
 
 	virtual void OnHealthUpdate();
 
-	virtual void OnCurrentWeaponUpdate();
-
 	virtual void OnDie();
 
-	bool FindWeapon(AFPSHeroWeaponBase* Weapon, EWeaponSlot& WeaponSlot);
+	bool FindWeapon(AFPSHeroWeaponBase* const Weapon, EWeaponSlot& WeaponSlot);
+
+	virtual void Initialize();
 		 
 		/** Pawn mesh: 1st person view (arms; seen only by self) */
 	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
@@ -227,9 +263,9 @@ protected:
 
 	EViewMode ViewMode;
 
-	UFUNCTION(ReplicatedUsing = OnRep_CurrentWeaponSlot)
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentWeaponSlot)
 	EWeaponSlot CurrentWeaponSlot;
-
+	UFUNCTION()
 	void OnRep_CurrentWeaponSlot();
 
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
@@ -254,6 +290,9 @@ protected:
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
 		float CurrentHealth;
 
+	UFUNCTION()
+		void OnRep_CurrentHealth();
+
 	UPROPERTY(EditDefaultsOnly, Category = BaseAttributes)
 		float DefaultAttack;
 
@@ -266,7 +305,12 @@ protected:
 	UPROPERTY(Replicated)
 		float Defence;
 
-	void OnRep_CurrentHealth();
+	UPROPERTY(ReplicatedUsing = OnRep_Initialzed)
+		bool bInitialized;
+	UFUNCTION()
+	void OnRep_Initialzed();
+
+	FRotator CharacterViewRotation;
 };
 
 

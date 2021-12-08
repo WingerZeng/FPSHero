@@ -13,6 +13,8 @@
 #include "FPSHeroCharacter.h"
 #include "FPSHeroRecoilBase.h"
 #include "Net/UnrealNetwork.h"
+#include "Camera/CameraComponent.h"
+
 AFPSHeroWeapon::AFPSHeroWeapon()
 {
 	MussleName = "MuzzleSocket";
@@ -20,7 +22,6 @@ AFPSHeroWeapon::AFPSHeroWeapon()
 	BodyDamage = 50;
 	HeadDamage = 100;
 
-	this->PrimaryActorTick.bCanEverTick = true;
 	ShootIntervalSecond = 1;
 	Mode = FireMode::Single;
 }
@@ -29,7 +30,7 @@ void AFPSHeroWeapon::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	if(!IsFiring){
-		if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
+		if (GetOwnerCharacter() && GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
 			// 停止射击后，计算后坐力恢复和准心恢复
 			SecondsSinceStopFire += DeltaSeconds;
 			// 后坐力恢复
@@ -40,7 +41,7 @@ void AFPSHeroWeapon::Tick(float DeltaSeconds)
 			}
 		}
 		// 准心恢复
-		if (Owner->IsLocallyControlled())
+		if (GetOwnerCharacter() && GetOwnerCharacter()->IsLocallyControlled())
 		{
 			float RestoreRatio = 1;
 			if (RecoilInstance)
@@ -81,7 +82,7 @@ void AFPSHeroWeapon::DealHit_Implementation(const FHitResult& Hit)
 
 	FVector eyeLoc;
 	FRotator eyeRot;
-	Owner->GetActorEyesViewPoint(eyeLoc, eyeRot);
+	GetOwnerCharacter()->GetActorEyesViewPoint(eyeLoc, eyeRot);
 
 	switch (physType) {
 	case PHYSMAT_FLESH: //default flesh
@@ -93,7 +94,7 @@ void AFPSHeroWeapon::DealHit_Implementation(const FHitResult& Hit)
 	default:
 		UButtonBoxComponent* box = Cast<UButtonBoxComponent>(Hit.Component);
 		if (box)
-			box->HitButton(Owner->GetController());
+			box->HitButton(GetOwnerCharacter()->GetController());
 		break;
 	}
 }
@@ -107,9 +108,9 @@ void AFPSHeroWeapon::PlayFireEffect()
 	//音效
 	if(FireSound)
 		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
-	APlayerController* Controller = Cast<APlayerController>(Owner->GetController());
+	APlayerController* Controller = Cast<APlayerController>(GetOwnerCharacter()->GetController());
 
-	if (Owner && Owner->IsLocallyControlled() && RecoilInstance) {
+	if (GetOwnerCharacter() && GetOwnerCharacter()->IsLocallyControlled() && RecoilInstance) {
 		// 镜头抖动
 		RecoilInstance->ApplyCameraShake(CurrentFiredAmmo, Controller);
 		// 镜头移动
@@ -118,8 +119,8 @@ void AFPSHeroWeapon::PlayFireEffect()
 		ApplyNewRecoilCameraOffset(RecoilPitch, RecoilYaw);
 	}
 
-	if (Owner) {
-		Owner->PlayMontage(FireMontage);
+	if (GetOwnerCharacter()) {
+		GetOwnerCharacter()->PlayMontage(FireMontage);
 	}
 }
 
@@ -156,43 +157,45 @@ void AFPSHeroWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 void AFPSHeroWeapon::SingleFire()
 {
 	CurrentFiredAmmo++;
-	if (Owner) {
+	
+	if (GetOwnerCharacter()) {
 		PlayFireEffect();
 
 		if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
 			// 得到摄像机的位置和朝向
 			FVector eyeLoc;
 			FRotator eyeRot;
-			Owner->GetActorEyesViewPoint(eyeLoc, eyeRot);
+			GetOwnerCharacter()->GetActorEyesViewPoint(eyeLoc, eyeRot);
 			FVector eyeDir = eyeRot.Vector();
 
 			/* 后坐力扩散 */
 			// 方向性扩散
 			// 首先得到镜头的Up、Right方向在世界坐标系下的方向向量，再乘上对应方向的扩散系数
-			eyeDir.Normalize();
-			FVector UpDir(0, 0, 1);
-			FVector RightDir = FVector::CrossProduct(eyeDir, UpDir);
-			RightDir.Normalize();
-			float SpreadUp = 0, SpreadRight = 0;
-			if (RecoilInstance) {
-				RecoilInstance->GetDirectionalSpread(CurrentFiredAmmo, SpreadUp, SpreadRight);
-			}
-			eyeDir += UpDir * SpreadUp + RightDir * SpreadRight;
-			eyeDir.Normalize();
-			// 随机扩散
-			// 根据扩散系数，在圆锥上取随机向量
-			float SpreadScale = 0;
-			if (RecoilInstance) {
-				RecoilInstance->GetRandomSpread(CurrentFiredAmmo, SpreadScale);
-			}
-			eyeDir = UKismetMathLibrary::RandomUnitVectorInConeInRadians(eyeDir, SpreadScale);
+			// #TEST
+			//eyeDir.Normalize();
+			//FVector UpDir(0, 0, 1);
+			//FVector RightDir = FVector::CrossProduct(eyeDir, UpDir);
+			//RightDir.Normalize();
+			//float SpreadUp = 0, SpreadRight = 0;
+			//if (RecoilInstance) {
+			//	RecoilInstance->GetDirectionalSpread(CurrentFiredAmmo, SpreadUp, SpreadRight);
+			//}
+			//eyeDir += UpDir * SpreadUp + RightDir * SpreadRight;
+			//eyeDir.Normalize();
+			//// 随机扩散
+			//// 根据扩散系数，在圆锥上取随机向量
+			//float SpreadScale = 0;
+			//if (RecoilInstance) {
+			//	RecoilInstance->GetRandomSpread(CurrentFiredAmmo, SpreadScale);
+			//}
+			//eyeDir = UKismetMathLibrary::RandomUnitVectorInConeInRadians(eyeDir, SpreadScale);
 
 			// 得到光线追踪目标点
-			FVector traceEnd = eyeLoc + eyeDir * 10000;
+			FVector traceEnd = eyeLoc + eyeDir * 100000;
 			FHitResult TempHit;
 			FCollisionQueryParams para;
 			// 忽略角色和枪模型
-			para.AddIgnoredActor(Owner);
+			para.AddIgnoredActor(GetOwnerCharacter());
 			para.AddIgnoredActor(this);
 			// 使用复杂碰撞来求交
 			para.bTraceComplex = true;
@@ -210,9 +213,9 @@ void AFPSHeroWeapon::SingleFire()
 
 void AFPSHeroWeapon::ApplyNewRecoilCameraOffset(float Pitch, float Yaw)
 {
-	if (!Owner)
+	if (!GetOwnerCharacter())
 		return;
-	APlayerController* controller = Cast<APlayerController>(Owner->GetController());
+	APlayerController* controller = Cast<APlayerController>(GetOwnerCharacter()->GetController());
 	if (controller) {
 		// 取反使得正值为镜头向上
 		controller->AddPitchInput(-(Pitch - PitchOffset));

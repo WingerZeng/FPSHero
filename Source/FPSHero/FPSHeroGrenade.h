@@ -87,14 +87,26 @@ public:
 
 	virtual void Fire() override;
 
+	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
+	virtual void DetachFromCharacter() override;
+	//#TEST
+	virtual void Tick(float DeltaSeconds);
+	
 protected:
 	UFUNCTION(BlueprintCallable, Category = GamePlay)
 	void ThrowOut();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void SetupThrownMovement();
 
 	virtual void OnActiveStateChanged();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = GamePlay)
 		void StartPrepare();
+
+	UFUNCTION(NetMulticast, Reliable)
+		void StartReleaseMulticast();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = GamePlay)
 		void StartRelease();
@@ -110,12 +122,12 @@ protected:
 	UFUNCTION(NetMulticast, Reliable)
 		void PlayExplodeEffect();
 
-	UFUNCTION(NetMulticast, Reliable)
-		void Detach();
-
 private:
 	FTimerHandle ExplodeTimer;
 
 	bool bReadyToThrow;
+
+	UPROPERTY(Replicated)
+	bool bThrown = false;
 };
 

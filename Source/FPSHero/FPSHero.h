@@ -19,6 +19,7 @@ enum class EWeaponSlot : uint8
 {
 	RIFLE_SLOT = 0,
 	GRENADE_SLOT = 1,
+	MAX_SLOT = 2,
 };
 
 UENUM(BlueprintType)
@@ -27,7 +28,9 @@ enum class EFireEndReason : uint8
 	SWAP_WEAPON = 0,
 	MOUSE_REALEASE = 1,
 	SWITCH_FIRE_MODE = 2,
-	FACE_TO_BACK = 3
+	FACE_TO_BACK = 3,
+	SWITCH_VIEW_MODE = 4,
+	REMOVE_WEAPON = 5,
 };
 
 #include "CoreMinimal.h"

@@ -37,10 +37,12 @@ public:
 
 	void SwitchFireMode();
 	
-	UFUNCTION(BlueprintNativeEvent)
+	UFUNCTION(BlueprintAuthorityOnly, BlueprintNativeEvent)
 	void SetWeaponActive(bool bActive);
 
 	void Throw();
+
+	virtual void Tick(float DeltaSeconds) override;
 
 	UFUNCTION(BlueprintCallable)
 	FVector GetLeftHandSocketPosition();
@@ -55,18 +57,29 @@ public:
 		bool ShouldUseLeftHand() { return ShouldHoldByTwoHands; }
 
 	UFUNCTION(BlueprintCallable)
-		AFPSHeroCharacter* GetOwnerCharacter() { return Owner; };
+		AFPSHeroCharacter* GetOwnerCharacter() { return OwnerCharacter; };
 
 	UFUNCTION(BlueprintCallable)
 		TSubclassOf<UAnimInstance> GetAnimClass(EViewMode ViewMode);
 
+	UFUNCTION(NetMulticast, Reliable)
+	void DetachFromCharacterMulticast();
+	
+	virtual void AttachToCharacter(class USkeletalMeshComponent* Mesh, FName SocketName);
+
+	virtual void DetachFromCharacter();
+
 protected:
 	virtual void SetWeaponActive_Implementation(bool bActive);
 
+	UFUNCTION()
 	virtual void OnActiveStateChanged();
 
 	UPROPERTY(EditDefaultsOnly, Category = "Component")
-	USkeletalMeshComponent* MeshComp;
+		USkeletalMeshComponent* MeshComp;
+
+	//UPROPERTY(VisibleDefaultsOnly, Category = "Component")
+	//	USkeletalMeshComponent* MeshCompForAttach;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Component")
 	USceneComponent* Root;
@@ -86,9 +99,6 @@ protected:
 	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
 		EWeaponSlot SlotInOwner;
 
-	UPROPERTY(Replicated)
-		AFPSHeroCharacter* Owner = nullptr;
-
 	UPROPERTY(ReplicatedUsing = OnActiveStateChanged, VisibleAnywhere, BlueprintReadOnly)
 		bool bIsWeaponActive = false;
 
@@ -97,4 +107,8 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 		bool IsFireModeLocked;
+
+private:
+	UPROPERTY(Replicated)
+		AFPSHeroCharacter* OwnerCharacter = nullptr;
 };
