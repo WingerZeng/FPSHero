@@ -2,6 +2,8 @@
 
 #include "FPSHeroCharacter.h"
 #include <algorithm>
+
+#include "FPSHeroGameMode.h"
 #include "FPSHeroGrenade.h"
 #include "FPSHeroWeapon.h"
 #include "FPSHeroGrenade.h"
@@ -29,6 +31,7 @@ void AFPSHeroCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(AFPSHeroCharacter, Weapons);
 	DOREPLIFETIME(AFPSHeroCharacter, CurrentWeaponSlot);
 	DOREPLIFETIME(AFPSHeroCharacter, bInitialized);
+	DOREPLIFETIME(AFPSHeroCharacter, TeamID);
 }
 
 void AFPSHeroCharacter::GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const
@@ -110,9 +113,17 @@ void AFPSHeroCharacter::OnWeaponUpdate()
 
 void AFPSHeroCharacter::OnDie()
 {
-	AFPSHeroGameStateBase* GameState = Cast<AFPSHeroGameStateBase>(GetWorld()->GetGameState());
-	if (GameState)
-		GameState->OnCharacterDie(this);
+	if(bIsFiring)
+		EndFire(EFireEndReason::DEAD);
+	SetViewMode(EViewMode::THIRD_PERSON);
+	GetMesh()->SetSimulatePhysics(true);
+	GetCapsuleComponent()->SetSimulatePhysics(true);
+	if(GetLocalRole() == ENetRole::ROLE_Authority)
+	{
+		AFPSHeroGameMode* GameMode = Cast<AFPSHeroGameMode>(GetWorld()->GetAuthGameMode());
+		if (GameMode)
+			GameMode->OnCharacterDie(this, LastDamageInstigator);
+	}
 }
 
 bool AFPSHeroCharacter::FindWeapon(AFPSHeroWeaponBase* const Weapon, EWeaponSlot& WeaponSlot)
@@ -475,6 +486,14 @@ float AFPSHeroCharacter::TakeDamage(float DamageAmount, struct FDamageEvent cons
 	if (GetLocalRole() == ROLE_Authority) {
 		//#TODO1 防御力系统
 		//#TODO1 EventInstigator作为复制变量，需要在该玩家HUD中显示伤害
+		AFPSHeroCharacter* Damagor = Cast<AFPSHeroCharacter>(EventInstigator->GetCharacter());
+		if(Damagor)
+		{
+			//关闭友军伤害
+			if(Damagor->GetTeam() == GetTeam() && Damagor->GetTeam() != ETEAM_NONE)
+				return 0;
+		}
+		LastDamageInstigator = EventInstigator;
 		SetHealth(GetHealth() - DamageAmount);
 		return DamageAmount;
 	}
@@ -486,6 +505,17 @@ FRotator AFPSHeroCharacter::GetViewRotation() const
 	if(GetLocalRole() == ENetRole::ROLE_Authority || IsLocallyControlled())
 		return Super::GetViewRotation();
 	return CharacterViewRotation;
+}
+
+void AFPSHeroCharacter::SetTeam(int Team)
+{
+	if(GetLocalRole() == ENetRole::ROLE_Authority)
+		TeamID = Team;
+}
+
+int AFPSHeroCharacter::GetTeam() const
+{
+	return TeamID;
 }
 
 FRotator AFPSHeroCharacter::GetCharacterViewRotation() const
@@ -663,6 +693,11 @@ void AFPSHeroCharacter::SetCharacterViewRotation_Implementation(FRotator Rotator
 {
 	if(GetLocalRole() != ENetRole::ROLE_Authority && !IsLocallyControlled())
 		CharacterViewRotation = Rotator;
+}
+
+int AFPSHeroCharacter::GetKillAwardMoney()
+{
+	return KillAwardMoney;
 }
 
 void AFPSHeroCharacter::MoveForward(float Value)

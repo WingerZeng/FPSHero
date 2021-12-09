@@ -16,5 +16,9 @@ class FPSHERO_API AFPSHeroGameStateBase : public AGameStateBase
 	GENERATED_BODY()
 	
 public:
-	virtual void OnCharacterDie(AFPSHeroCharacter* Character);
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void AddMoneyForAllPlayer(int AddMoney);
+	
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	void SetMoneyForAllPlayer(int NewMoney);
 };

@@ -3,8 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FPSHeroPlayerStateBase.h"
 #include "GameFramework/GameModeBase.h"
 #include "FPSHeroGameMode.generated.h"
+
+class AFPSHeroCharacter;
 
 UCLASS(minimalapi)
 class AFPSHeroGameMode : public AGameModeBase
@@ -13,6 +16,26 @@ class AFPSHeroGameMode : public AGameModeBase
 
 public:
 	AFPSHeroGameMode();
+	
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, BlueprintNativeEvent)
+	void CharacterDie(AFPSHeroCharacter* Character, AController* Killer);
+	
+	virtual void OnCharacterDie(AFPSHeroCharacter* Character, AController* Killer);
+
+	virtual void BeginPlay() override;
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void GameStart();
+
+	UFUNCTION(BlueprintCallable)
+	int GetDeathPunishMoney();
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void GetPlayerBirthTransform(AFPSHeroPlayerStateBase* Player, FTransform& Transform);
+	
+protected:
+	UPROPERTY(EditDefaultsOnly)
+	int DeathPunishMoney = 100;
 };
 
 

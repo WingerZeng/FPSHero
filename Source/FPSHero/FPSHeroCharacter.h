@@ -102,10 +102,17 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		void SetDefence(float NewDefence);
+	
+	UFUNCTION(BlueprintCallable)
+	virtual int GetKillAwardMoney(); 
 
 	float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 
 	virtual FRotator GetViewRotation() const override;
+
+	void SetTeam(int Team);
+
+	int GetTeam() const;
 
 	UFUNCTION(BlueprintCallable)
 	FRotator GetCharacterViewRotation() const;
@@ -310,7 +317,15 @@ protected:
 	UFUNCTION()
 	void OnRep_Initialzed();
 
+	AController* LastDamageInstigator;
+
 	FRotator CharacterViewRotation;
+
+	UPROPERTY(EditDefaultsOnly)
+	int KillAwardMoney = 200;
+
+	UPROPERTY(Replicated)
+		int TeamID;
 };
 
 
