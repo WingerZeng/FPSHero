@@ -39,6 +39,9 @@ AFPSHeroGrenade::AFPSHeroGrenade()
 	ThrowOutNotifyName = "ThrowOut";
 	ThrowReadyNotifyName = "ThrowReady";
 
+	Ammo = 1;
+	TotalAmmo = 1;
+	
 	this->PrimaryActorTick.bCanEverTick = true;
 }
 

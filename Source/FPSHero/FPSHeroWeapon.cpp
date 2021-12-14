@@ -23,6 +23,7 @@ AFPSHeroWeapon::AFPSHeroWeapon()
 	HeadDamage = 100;
 
 	ShootIntervalSecond = 1;
+	
 	Mode = FireMode::Single;
 }
 
@@ -86,10 +87,10 @@ void AFPSHeroWeapon::DealHit_Implementation(const FHitResult& Hit)
 
 	switch (physType) {
 	case PHYSMAT_FLESH: //default flesh
-		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), BodyDamage, Hit.ImpactPoint - eyeLoc, Hit, GEngine->GetFirstLocalPlayerController(GetWorld()), this, DamageType);
+		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), BodyDamage, Hit.ImpactPoint - eyeLoc, Hit, GetOwnerCharacter()->GetController(), this, DamageType);
 		break;
 	case PHYSMAT_FLESHVULNERABLE: //vulnerable flesh
-		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), HeadDamage, Hit.ImpactPoint - eyeLoc, Hit, GEngine->GetFirstLocalPlayerController(GetWorld()), this, DamageType);
+		UGameplayStatics::ApplyPointDamage(Hit.GetActor(), HeadDamage, Hit.ImpactPoint - eyeLoc, Hit, GetOwnerCharacter()->GetController(), this, DamageType);
 		break;
 	default:
 		UButtonBoxComponent* box = Cast<UButtonBoxComponent>(Hit.Component);
@@ -156,6 +157,11 @@ void AFPSHeroWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 
 void AFPSHeroWeapon::SingleFire()
 {
+	if(GetAmmo() == 0)
+		return;
+	SetTotalAmmo(GetTotalAmmo()-1);
+	SetAmmo(GetAmmo()-1);
+	
 	CurrentFiredAmmo++;
 	
 	if (GetOwnerCharacter()) {

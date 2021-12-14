@@ -3,6 +3,7 @@
 
 #include "FPSHeroPlayerStateBase.h"
 
+#include "FPSHeroCharacter.h"
 #include "FPSHeroGameMode.h"
 #include "Net/UnrealNetwork.h"
 
@@ -19,7 +20,10 @@ int AFPSHeroPlayerStateBase::GetMoney() const
 void AFPSHeroPlayerStateBase::SetMoney(int NewMoney)
 {
 	if(GetLocalRole() == ENetRole::ROLE_Authority)
+	{
 		this->Money = NewMoney;
+		OnRep_Money();
+	}
 }
 
 void AFPSHeroPlayerStateBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -56,6 +60,16 @@ APlayerController* AFPSHeroPlayerStateBase::GetPlayerController()
 	return nullptr;
 }
 
+void AFPSHeroPlayerStateBase::OnRep_Money()
+{
+	if(GetPlayerController()){
+		if(AFPSHeroHUD* HUD = Cast<AFPSHeroHUD>(GetPlayerController()->GetHUD()))
+		{
+			HUD->CharacterUpdate();
+		}
+	}
+}
+
 void AFPSHeroPlayerStateBase::Birth_Implementation()
 {
 	if(GetLocalRole() == ROLE_Authority)
@@ -63,11 +77,25 @@ void AFPSHeroPlayerStateBase::Birth_Implementation()
 		AFPSHeroGameMode* GameMode = Cast<AFPSHeroGameMode>(GetWorld()->GetAuthGameMode());
 		if(GameMode)
 		{
-			FTransform Transform;
-			GameMode->GetPlayerBirthTransform(this, Transform);
 			APlayerController* Controller = GetPlayerController();
 			if(Controller)
-				GameMode->SpawnDefaultPawnAtTransform(Controller, Transform);
+			{
+				//先删除之前的
+				APawn* Pawn = Controller->GetPawn();
+				if(Pawn && Pawn->IsValidLowLevel())
+					Pawn->Destroy();
+				do
+				{
+					FTransform Transform;
+					GameMode->GetPlayerBirthTransform(this, Transform);
+					GameMode->RestartPlayerAtTransform(Controller, Transform);
+					Pawn = Controller->GetPawn();	
+				}
+				while (!Pawn); // 考虑到生成位置被阻挡，需要多次尝试
+				AFPSHeroCharacter* Character = Cast<AFPSHeroCharacter>(Pawn);
+				Character->OnControllerChanged();
+			}
 		}	
 	}
+	
 }

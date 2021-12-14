@@ -3,6 +3,7 @@
 #include "FPSHeroCharacter.h"
 #include <algorithm>
 
+#include "AIController.h"
 #include "FPSHeroGameMode.h"
 #include "FPSHeroGrenade.h"
 #include "FPSHeroWeapon.h"
@@ -19,12 +20,15 @@
 #include "Math/UnrealMathUtility.h"
 #include "Net/UnrealNetwork.h"
 #include "FPSHeroGameStateBase.h"
+#include "FPSHeroHUD.h"
+class AAIController;
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
 void AFPSHeroCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AFPSHeroCharacter, CurrentHealth);
+	DOREPLIFETIME(AFPSHeroCharacter, MaxHealth);
 	DOREPLIFETIME(AFPSHeroCharacter, Attack);
 	DOREPLIFETIME(AFPSHeroCharacter, Defence);
 	DOREPLIFETIME(AFPSHeroCharacter, bIsTurning);
@@ -37,7 +41,12 @@ void AFPSHeroCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 void AFPSHeroCharacter::GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const
 {
 	OutLocation = FirstPersonCameraComponent->GetComponentLocation();
-	OutRotation = FirstPersonCameraComponent->GetComponentRotation();
+	OutRotation = GetControlRotation();
+}
+
+FVector AFPSHeroCharacter::GetPawnViewLocation() const
+{
+	return GetFirstPersonCameraComponent()->GetComponentLocation();
 }
 
 void AFPSHeroCharacter::OnRep_Weapons()
@@ -47,24 +56,12 @@ void AFPSHeroCharacter::OnRep_Weapons()
 
 EWeaponSlot AFPSHeroCharacter::GetWeaponSlot(AFPSHeroWeaponBase* Weapon)
 {
-	if (Cast<AFPSHeroWeapon>(Weapon)) {
-		return EWeaponSlot::RIFLE_SLOT;
-	}
-	else if(Cast<AFPSHeroGrenade>(Weapon)){
-		return EWeaponSlot::GRENADE_SLOT;
-	}
-	else {
-		return EWeaponSlot::RIFLE_SLOT;
-	}
+	return Weapon->GetSlot();
 }
 
 EWeaponSlot AFPSHeroCharacter::GetNextWeaponSlot(EWeaponSlot WeaponSlot)
 {
-	if (WeaponSlot == EWeaponSlot::RIFLE_SLOT)
-		return EWeaponSlot::GRENADE_SLOT;
-	if (WeaponSlot == EWeaponSlot::GRENADE_SLOT)
-		return EWeaponSlot::RIFLE_SLOT;
-	return EWeaponSlot::GRENADE_SLOT;
+	return static_cast<EWeaponSlot>((static_cast<uint8>(WeaponSlot) + 1) % static_cast<uint8>(EWeaponSlot::MAX_SLOT));
 }
 
 EWeaponSlot AFPSHeroCharacter::FindValidSlotFromSlot(EWeaponSlot WeaponSlot)
@@ -92,9 +89,22 @@ EWeaponSlot AFPSHeroCharacter::FindValidSlotFromNextSlot(EWeaponSlot WeaponSlot)
 
 void AFPSHeroCharacter::OnHealthUpdate()
 {
-	//#TODO0
+	if(IsLocallyControlled())
+	{
+		AFPSHeroHUD* HUD = GetFPSHeroHUD();
+		if(HUD)
+		{
+			HUD->CharacterUpdate();
+		}
+	}
 	if (CurrentHealth <= 0)
-		OnDie();
+	{
+		if(!bIsDead)
+		{
+			bIsDead = true;
+			OnDie();	
+		}	
+	}
 }
 
 void AFPSHeroCharacter::OnWeaponUpdate()
@@ -109,21 +119,36 @@ void AFPSHeroCharacter::OnWeaponUpdate()
 	FName WeaponSocketName;
 	GetCurrentWeapon()->AttachToCharacter(GetCurrentMesh(), (GetDisplayViewMode() == EViewMode::FIRST_PERSON ? FPSWeaponSocketName : TPSWeaponSocketName));
 	UpdateAnimationClass();
+	if(IsLocallyControlled())
+	{
+		if(GetFPSHeroHUD())
+			GetFPSHeroHUD()->CharacterUpdate();
+	}
 }
 
 void AFPSHeroCharacter::OnDie()
+{
+	if(GetLocalRole() == ENetRole::ROLE_Authority)
+	{
+		DieMulticaset(LastDamageImpulse, LastDamageLocation, bIsLastDamagePoint);
+		AFPSHeroGameMode* GameMode = Cast<AFPSHeroGameMode>(GetWorld()->GetAuthGameMode());
+		if (GameMode)
+			GameMode->CharacterDie(this, LastDamageInstigator);
+	}
+}
+
+void AFPSHeroCharacter::DieMulticaset_Implementation(FVector DamageImpulse, FVector DamageLocation, bool bIsDamagePoint)
 {
 	if(bIsFiring)
 		EndFire(EFireEndReason::DEAD);
 	SetViewMode(EViewMode::THIRD_PERSON);
 	GetMesh()->SetSimulatePhysics(true);
-	GetCapsuleComponent()->SetSimulatePhysics(true);
-	if(GetLocalRole() == ENetRole::ROLE_Authority)
-	{
-		AFPSHeroGameMode* GameMode = Cast<AFPSHeroGameMode>(GetWorld()->GetAuthGameMode());
-		if (GameMode)
-			GameMode->OnCharacterDie(this, LastDamageInstigator);
-	}
+	GetMesh()->SetCollisionResponseToChannel(TRACECHANNEL_WEAPON, ECollisionResponse::ECR_Ignore);
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if(bIsDamagePoint)
+		GetMesh()->AddImpulseAtLocation(DamageImpulse, DamageLocation);
+	else
+		GetMesh()->AddImpulse(DamageImpulse);
 }
 
 bool AFPSHeroCharacter::FindWeapon(AFPSHeroWeaponBase* const Weapon, EWeaponSlot& WeaponSlot)
@@ -141,6 +166,8 @@ void AFPSHeroCharacter::Initialize()
 {
 	SetViewMode(ViewMode);
 	OnWeaponUpdate();
+	if(GetFPSHeroHUD())
+		GetFPSHeroHUD()->CharacterUpdate();
 }
 
 void AFPSHeroCharacter::OnRep_CurrentWeaponSlot()
@@ -160,15 +187,7 @@ void AFPSHeroCharacter::OnRep_Initialzed()
 
 EWeaponSlot AFPSHeroCharacter::GetWeaponTypeSlot(TSubclassOf<AFPSHeroWeaponBase> WeaponType)
 {
-	if (TSubclassOf<AFPSHeroWeapon>(WeaponType)) {
-		return EWeaponSlot::RIFLE_SLOT;
-	}
-	else if (TSubclassOf<AFPSHeroGrenade>(WeaponType)) {
-		return EWeaponSlot::GRENADE_SLOT;
-	}
-	else {
-		return EWeaponSlot::RIFLE_SLOT;
-	}
+	return WeaponType->GetDefaultObject<AFPSHeroWeaponBase>()->GetSlot();
 }
 
 AFPSHeroCharacter::AFPSHeroCharacter()
@@ -428,13 +447,16 @@ bool AFPSHeroCharacter::IsFiring()
 	return bIsFiring;
 }
 
-FRotator AFPSHeroCharacter::GetAimingRotation()
+void AFPSHeroCharacter::Destroyed()
 {
-	if (ViewMode == EViewMode::FIRST_PERSON)
-		return GetViewRotation();
-	FRotator DeltaRot = UKismetMathLibrary::NormalizedDeltaRotator(GetViewRotation(), GetActorRotation());
-	DeltaRot.Yaw = UKismetMathLibrary::FClamp(DeltaRot.Yaw, -90.0f, 90.0f);
-	return DeltaRot + GetActorRotation();
+	for(const auto& Weapon: Weapons)
+	{
+		if(Weapon && Weapon->IsValidLowLevel())
+		{
+			Weapon->Destroy();
+		}
+	}
+	Super::Destroyed();
 }
 
 TSubclassOf<UAnimInstance> AFPSHeroCharacter::GetDefaultAnimClass(EViewMode AnimViewMode)
@@ -444,6 +466,16 @@ TSubclassOf<UAnimInstance> AFPSHeroCharacter::GetDefaultAnimClass(EViewMode Anim
 	}
 	else
 		return DefaultTPSAnimClass;
+}
+
+float AFPSHeroCharacter::GetMaxHealth()
+{
+	return MaxHealth; 
+}
+
+void AFPSHeroCharacter::OnRep_MaxHealth()
+{
+	OnHealthUpdate();	
 }
 
 float AFPSHeroCharacter::GetHealth()
@@ -481,25 +513,6 @@ void AFPSHeroCharacter::SetDefence(float NewDefence)
 		Defence = FMath::Max(0.0f, NewDefence);
 }
 
-float AFPSHeroCharacter::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
-{
-	if (GetLocalRole() == ROLE_Authority) {
-		//#TODO1 防御力系统
-		//#TODO1 EventInstigator作为复制变量，需要在该玩家HUD中显示伤害
-		AFPSHeroCharacter* Damagor = Cast<AFPSHeroCharacter>(EventInstigator->GetCharacter());
-		if(Damagor)
-		{
-			//关闭友军伤害
-			if(Damagor->GetTeam() == GetTeam() && Damagor->GetTeam() != ETEAM_NONE)
-				return 0;
-		}
-		LastDamageInstigator = EventInstigator;
-		SetHealth(GetHealth() - DamageAmount);
-		return DamageAmount;
-	}
-	return 0;
-}
-
 FRotator AFPSHeroCharacter::GetViewRotation() const
 {
 	if(GetLocalRole() == ENetRole::ROLE_Authority || IsLocallyControlled())
@@ -523,11 +536,12 @@ FRotator AFPSHeroCharacter::GetCharacterViewRotation() const
 	return GetViewRotation();
 }
 
-void AFPSHeroCharacter::BeginPlay()
+void AFPSHeroCharacter::OnControllerChanged_Implementation()
 {
-	// Call the base class  
-	Super::BeginPlay();
 	if (GetLocalRole() == ROLE_Authority) {
+		const auto FPSPlayerState = Cast<AFPSHeroPlayerStateBase> (GetPlayerState());
+		if(FPSPlayerState)
+			SetTeam(FPSPlayerState->GetTeam());
 		CurrentHealth = MaxHealth;
 		Attack = DefaultAttack;
 		Defence = DefaultDefence;
@@ -540,6 +554,37 @@ void AFPSHeroCharacter::BeginPlay()
 		bInitialized = true;
 		Initialize();
 	}
+}
+
+AFPSHeroHUD* AFPSHeroCharacter::GetFPSHeroHUD()
+{
+	APlayerController* FPSController =  Cast<APlayerController>(GetController());
+	if(FPSController)
+	{
+		return Cast<AFPSHeroHUD>(FPSController->GetHUD());
+	}
+	return nullptr;
+}
+
+FVector AFPSHeroCharacter::GetBotAimLocation()
+{
+	if(!GetMesh() || !GetMesh()->IsValidLowLevel())
+	{
+		return GetActorLocation();
+	}
+	return GetMesh()->GetSocketLocation(BotAimSocketName);
+}
+
+bool AFPSHeroCharacter::IsDead()
+{
+	return bIsDead;
+}
+
+void AFPSHeroCharacter::BeginPlay()
+{
+	// Call the base class  
+	Super::BeginPlay();
+	OnControllerChanged();
 }
 
 void AFPSHeroCharacter::Tick(float DeltaSeconds)
@@ -576,6 +621,67 @@ void AFPSHeroCharacter::Tick(float DeltaSeconds)
 	}
 }
 
+float AFPSHeroCharacter::InternalTakePointDamage(float Damage, FPointDamageEvent const& PointDamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	Super::InternalTakePointDamage(Damage, PointDamageEvent, EventInstigator, DamageCauser);
+	if (GetLocalRole() == ROLE_Authority) {
+		//关闭友军伤害
+		if(AFPSHeroGameMode* GameMode = Cast<AFPSHeroGameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			if(!GameMode->IsGameStarted())
+				return 0;
+		}
+		AFPSHeroCharacter* DamagorCharacter = Cast<AFPSHeroCharacter>(EventInstigator->GetCharacter());
+		if(DamagorCharacter)
+		{
+			if(DamagorCharacter->GetTeam() == GetTeam() && DamagorCharacter->GetTeam() != ETEAM_NONE)
+				return 0;
+		}
+		//#TODO1 EventInstigator作为复制变量，需要在该玩家HUD中显示伤害
+		LastDamageInstigator = EventInstigator;
+		//记录冲量
+		FVector ShotDir = FVector(PointDamageEvent.ShotDirection);
+		ShotDir.Normalize();
+		LastDamageImpulse = ShotDir * PointDamageEvent.DamageTypeClass->GetDefaultObject<UDamageType>()->DamageImpulse;
+		LastDamageLocation = PointDamageEvent.HitInfo.Location;
+		bIsLastDamagePoint = true;
+		return ApplyDamage(Damage);
+	}
+	return 0;
+}
+
+float AFPSHeroCharacter::InternalTakeRadialDamage(float Damage, FRadialDamageEvent const& RadialDamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	Super::InternalTakeRadialDamage(Damage, RadialDamageEvent, EventInstigator, DamageCauser);
+	if (GetLocalRole() == ROLE_Authority) {
+		//关闭友军伤害
+		AFPSHeroCharacter* DamagorCharacter = Cast<AFPSHeroCharacter>(EventInstigator->GetCharacter());
+		if(DamagorCharacter)
+		{
+			if(DamagorCharacter->GetTeam() == GetTeam() && DamagorCharacter->GetTeam() != ETEAM_NONE)
+				return 0;
+		}
+		//#TODO1 EventInstigator作为复制变量，需要在该玩家HUD中显示伤害
+		LastDamageInstigator = EventInstigator;
+		//记录冲量
+		FVector DamageDir = this->GetActorLocation() - RadialDamageEvent.Origin;
+		DamageDir.Normalize();
+		LastDamageImpulse = DamageDir * RadialDamageEvent.DamageTypeClass->GetDefaultObject<UDamageType>()->DamageImpulse;
+		bIsLastDamagePoint = false;
+		return ApplyDamage(Damage);
+	}
+	return 0;
+}
+
+float AFPSHeroCharacter::ApplyDamage(float Damage)
+{
+	//#TODO1 防御力系统，修改Damage
+	SetHealth(GetHealth() - Damage);
+	return Damage;
+}
+
 void AFPSHeroCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
 	// set up gameplay key bindings
@@ -600,6 +706,7 @@ void AFPSHeroCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerI
 	PlayerInputComponent->BindAction("SwitchViewMode", IE_Pressed, this, &AFPSHeroCharacter::SwitchViewMode);
 	PlayerInputComponent->BindAction("Weapon1", IE_Pressed, this, &AFPSHeroCharacter::SwitchToWeaponSlot1);
 	PlayerInputComponent->BindAction("Weapon2", IE_Pressed, this, &AFPSHeroCharacter::SwitchToWeaponSlot2);
+	PlayerInputComponent->BindAction("Weapon3", IE_Pressed, this, &AFPSHeroCharacter::SwitchToWeaponSlot3);
 }
 
 void AFPSHeroCharacter::OnFire()
@@ -675,7 +782,7 @@ void AFPSHeroCharacter::SwitchToWeaponSlot1_Implementation()
 
 void AFPSHeroCharacter::SwitchToWeaponSlot2_Implementation()
 {
-	SwitchToWeaponSlot(EWeaponSlot::GRENADE_SLOT);
+	SwitchToWeaponSlot(EWeaponSlot::LIGHTWEAPON_SLOT);
 }
 
 void AFPSHeroCharacter::RemoveWeapon(EWeaponSlot WeaponSlot)
@@ -698,6 +805,11 @@ void AFPSHeroCharacter::SetCharacterViewRotation_Implementation(FRotator Rotator
 int AFPSHeroCharacter::GetKillAwardMoney()
 {
 	return KillAwardMoney;
+}
+
+void AFPSHeroCharacter::SwitchToWeaponSlot3_Implementation()
+{
+	SwitchToWeaponSlot(EWeaponSlot::GRENADE_SLOT);
 }
 
 void AFPSHeroCharacter::MoveForward(float Value)

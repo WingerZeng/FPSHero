@@ -23,8 +23,9 @@ UENUM(BlueprintType)
 enum class EWeaponSlot : uint8
 {
 	RIFLE_SLOT = 0,
-	GRENADE_SLOT = 1,
-	MAX_SLOT = 2,
+	LIGHTWEAPON_SLOT = 1,
+	GRENADE_SLOT = 2,
+	MAX_SLOT = 3,
 };
 
 UENUM(BlueprintType)
@@ -46,6 +47,15 @@ enum class ETEAM : uint8
 	TEAM1 = 1,
 	TEAM2 = 2,
 	TEAM_NEUTRAL = 3
+};
+
+UENUM(BlueprintType)
+enum class EEntryLevel: uint8
+{
+	LEVEL_LOW = 0,
+	LEVEL_MEDIUM = 1,
+	LEVEL_HIGH = 2,
+	LEVEL_MAX = 3
 };
 
 #include "CoreMinimal.h"

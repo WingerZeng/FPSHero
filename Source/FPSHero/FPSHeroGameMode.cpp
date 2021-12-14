@@ -50,7 +50,17 @@ void AFPSHeroGameMode::BeginPlay()
 	Super::BeginPlay();
 }
 
+void AFPSHeroGameMode::GameStart_Implementation()
+{
+	bIsGameStarted = true;
+}
+
 int AFPSHeroGameMode::GetDeathPunishMoney()
 {
 	return DeathPunishMoney;
+}
+
+bool AFPSHeroGameMode::IsGameStarted()
+{
+	return bIsGameStarted;
 }

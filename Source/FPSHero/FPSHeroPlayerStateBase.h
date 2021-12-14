@@ -41,9 +41,11 @@ public:
 	APlayerController* 	GetPlayerController();
 	
 protected:
-	UPROPERTY(Replicated)
+	UPROPERTY(ReplicatedUsing = OnRep_Money)
 	int Money = 0;
+	UFUNCTION()
+	void OnRep_Money();
 	
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, VisibleAnywhere)
 	int TeamID;
 };

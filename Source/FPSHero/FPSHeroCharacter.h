@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "FPSHero.h"
+#include "FPSHeroHUD.h"
 #include "GameFramework/Character.h"
 #include "FPSHeroWeaponBase.h"
 #include "Containers/Map.h"
@@ -35,7 +36,7 @@ public:
 		void ThrowWeapon(EWeaponSlot WeaponSlot, bool bShouldChangeWeaponAuto = false);
 
 	UFUNCTION()
-		void OnWeaponUpdate();
+	virtual void OnWeaponUpdate();
 
 	UFUNCTION(BlueprintAuthorityOnly, BlueprintCallable)
 		void SwitchToWeaponSlot(EWeaponSlot WeaponSlot);
@@ -49,7 +50,7 @@ public:
 	UFUNCTION(NetMulticast, Reliable, BlueprintCallable)
 		void SetViewModeNetMulticast(EViewMode NewViewMode);
 
-	void SetViewMode(EViewMode NewViewMode);
+	virtual void SetViewMode(EViewMode NewViewMode);
 
 	EViewMode GetViewMode();
 
@@ -68,7 +69,7 @@ public:
 		void PlayMontage(UAnimMontage* Montage);
 
 	UFUNCTION(BlueprintCallable)
-		USkeletalMeshComponent* GetCurrentMesh();
+	virtual  USkeletalMeshComponent* GetCurrentMesh();
 
 	UFUNCTION(BlueprintCallable)
 		bool IsTurning();
@@ -79,12 +80,14 @@ public:
 	UFUNCTION(BlueprintCallable)
 		bool IsFiring();
 
-	UFUNCTION(BlueprintCallable)
-		FRotator GetAimingRotation();
+	virtual void Destroyed() override;
 
 	UFUNCTION(BlueprintCallable)
 		TSubclassOf<UAnimInstance> GetDefaultAnimClass(EViewMode ViewMode);
 
+	UFUNCTION(BlueprintCallable)
+	float GetMaxHealth();
+	
 	UFUNCTION(BlueprintCallable)
 		float GetHealth();
 
@@ -104,24 +107,43 @@ public:
 		void SetDefence(float NewDefence);
 	
 	UFUNCTION(BlueprintCallable)
-	virtual int GetKillAwardMoney(); 
-
-	float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+	virtual int GetKillAwardMoney();
 
 	virtual FRotator GetViewRotation() const override;
 
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
 	void SetTeam(int Team);
 
+	UFUNCTION(BlueprintCallable)
 	int GetTeam() const;
 
 	UFUNCTION(BlueprintCallable)
 	FRotator GetCharacterViewRotation() const;
 
+	UFUNCTION(BlueprintAuthorityOnly, BlueprintCallable, BlueprintNativeEvent)
+	void OnControllerChanged();
+
+	UFUNCTION(BlueprintCallable)
+	AFPSHeroHUD* GetFPSHeroHUD();
+
+	// 机器人瞄准的位置
+	UFUNCTION(BlueprintCallable)
+    FVector GetBotAimLocation();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	bool IsDead();
+    
 protected:
 	virtual void BeginPlay() override;
 
 	virtual void Tick(float DeltaSeconds) override;
 
+	virtual float InternalTakePointDamage(float Damage, FPointDamageEvent const& PointDamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+	virtual float InternalTakeRadialDamage(float Damage, FRadialDamageEvent const& RadialDamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+	float ApplyDamage(float Damage);
+	
 public:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category=Camera)
@@ -153,8 +175,10 @@ protected:
 
 	void EndFire(EFireEndReason Reason = EFireEndReason::MOUSE_REALEASE);
 
+	UFUNCTION(BlueprintCallable)
 	void OnFireButtonPress();
 
+	UFUNCTION(BlueprintCallable)
 	void OnFireButtonRelease();
 
 	UFUNCTION(Server, Reliable)
@@ -177,6 +201,9 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void SwitchToWeaponSlot2();
+	
+	UFUNCTION(Server, Reliable)
+	void SwitchToWeaponSlot3();
 
 	// Set View Rotation For Other Client
 	UFUNCTION(NetMulticast, Unreliable)
@@ -209,10 +236,8 @@ protected:
 	// void LookUpAtRateMulticast(float Rate);
 	
 protected:
-	// APawn interface
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
-	// End of APawn interface
-
+	
 public:
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	/** Returns Mesh1P subobject **/
@@ -221,6 +246,8 @@ public:
 	FORCEINLINE class UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
 	virtual void GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const override;
+
+	virtual FVector GetPawnViewLocation() const override;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 		bool bIsForceToFireOrientaion = false;
@@ -249,6 +276,9 @@ protected:
 	virtual void OnHealthUpdate();
 
 	virtual void OnDie();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void DieMulticaset(FVector DamageImpulse, FVector DamageLocation, bool bIsDamagePoint);
 
 	bool FindWeapon(AFPSHeroWeaponBase* const Weapon, EWeaponSlot& WeaponSlot);
 
@@ -291,8 +321,10 @@ protected:
 	bool bIsTurning = false;
 
 	// Attributes
-	UPROPERTY(EditDefaultsOnly, Category = BaseAttributes)
+	UPROPERTY(EditDefaultsOnly, Category = BaseAttributes, ReplicatedUsing = OnRep_MaxHealth)
 	float MaxHealth;
+	UFUNCTION()
+	void OnRep_MaxHealth();
 
 	UPROPERTY(ReplicatedUsing = OnRep_CurrentHealth)
 		float CurrentHealth;
@@ -314,6 +346,9 @@ protected:
 
 	UPROPERTY(ReplicatedUsing = OnRep_Initialzed)
 		bool bInitialized;
+
+	bool bIsDead;
+	
 	UFUNCTION()
 	void OnRep_Initialzed();
 
@@ -324,8 +359,16 @@ protected:
 	UPROPERTY(EditDefaultsOnly)
 	int KillAwardMoney = 200;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, VisibleAnywhere)
 		int TeamID;
+
+	// 记录最后一次伤害的冲量，在死亡时附加
+	FVector LastDamageImpulse;
+	FVector LastDamageLocation;
+	bool bIsLastDamagePoint;
+
+	UPROPERTY(VisibleDefaultsOnly)
+	FName BotAimSocketName = "BotAimSocket"; // Character将被Bot自动瞄准该位置
 };
 
 

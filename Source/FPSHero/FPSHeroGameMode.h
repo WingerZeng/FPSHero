@@ -24,7 +24,7 @@ public:
 
 	virtual void BeginPlay() override;
 
-	UFUNCTION(BlueprintImplementableEvent)
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
 	void GameStart();
 
 	UFUNCTION(BlueprintCallable)
@@ -32,10 +32,15 @@ public:
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void GetPlayerBirthTransform(AFPSHeroPlayerStateBase* Player, FTransform& Transform);
+
+	UFUNCTION(BlueprintCallable)
+	bool IsGameStarted();
 	
 protected:
 	UPROPERTY(EditDefaultsOnly)
 	int DeathPunishMoney = 100;
+
+	bool bIsGameStarted = false;
 };
 
 

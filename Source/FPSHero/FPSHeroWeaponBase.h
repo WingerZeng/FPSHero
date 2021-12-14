@@ -69,6 +69,23 @@ public:
 
 	virtual void DetachFromCharacter();
 
+	virtual void OnAmmoUpdate();
+
+	UFUNCTION(BlueprintCallable)
+	int GetAmmo() const;
+	
+	UFUNCTION(BlueprintCallable)
+	void SetAmmo(int Ammo);
+	
+	UFUNCTION(BlueprintCallable)
+	int GetTotalAmmo() const;
+	
+	UFUNCTION(BlueprintCallable)
+	void SetTotalAmmo(int TotalAmmo);
+
+	UFUNCTION(BlueprintCallable)
+	EWeaponSlot GetSlot();
+	
 protected:
 	virtual void SetWeaponActive_Implementation(bool bActive);
 
@@ -77,9 +94,6 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Component")
 		USkeletalMeshComponent* MeshComp;
-
-	//UPROPERTY(VisibleDefaultsOnly, Category = "Component")
-	//	USkeletalMeshComponent* MeshCompForAttach;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Component")
 	USceneComponent* Root;
@@ -107,8 +121,22 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 		bool IsFireModeLocked;
-
+	
 private:
 	UPROPERTY(Replicated)
 		AFPSHeroCharacter* OwnerCharacter = nullptr;
+
+protected:
+	UPROPERTY(EditDefaultsOnly, ReplicatedUsing = OnRep_Ammo)
+	int Ammo;
+	UFUNCTION()
+	void OnRep_Ammo();
+
+	UPROPERTY(EditDefaultsOnly, ReplicatedUsing = OnRep_TotalAmmo)
+	int TotalAmmo;
+	UFUNCTION()
+	void OnRep_TotalAmmo();
+
+	UPROPERTY(EditDefaultsOnly)
+	EWeaponSlot EquipSlot;
 };

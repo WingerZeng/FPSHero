@@ -64,6 +64,10 @@ void AFPSHeroWeaponBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(AFPSHeroWeaponBase, OwnerCharacter);
 
 	DOREPLIFETIME(AFPSHeroWeaponBase, Mode)
+	
+	DOREPLIFETIME(AFPSHeroWeaponBase, TotalAmmo)
+	
+	DOREPLIFETIME(AFPSHeroWeaponBase, Ammo)
 }
 
 void AFPSHeroWeaponBase::SwitchFireMode()
@@ -131,6 +135,18 @@ void AFPSHeroWeaponBase::DetachFromCharacter()
 	this->MeshComp->AttachToComponent(this->RootComponent, rule);
 }
 
+void AFPSHeroWeaponBase::OnAmmoUpdate()
+{
+	if(GetOwnerCharacter()->IsLocallyControlled())
+	{
+		AFPSHeroHUD* HUD = GetOwnerCharacter()->GetFPSHeroHUD();
+		if(HUD)
+		{
+			HUD->CharacterUpdate();
+		}
+	}
+}
+
 void AFPSHeroWeaponBase::SetWeaponActive_Implementation(bool bActive)
 {
 	bIsWeaponActive = bActive;
@@ -140,4 +156,43 @@ void AFPSHeroWeaponBase::SetWeaponActive_Implementation(bool bActive)
 void AFPSHeroWeaponBase::OnActiveStateChanged()
 {
 	MeshComp->SetVisibility(bIsWeaponActive, true);
+}
+
+int AFPSHeroWeaponBase::GetAmmo() const
+{
+	return Ammo;
+}
+
+void AFPSHeroWeaponBase::SetAmmo(int NewAmmo)
+{
+	this->Ammo = FMath::Min(GetTotalAmmo(), NewAmmo);
+	if(GetOwnerCharacter()->GetLocalRole() == ENetRole::ROLE_Authority)
+		OnRep_Ammo();
+}
+
+int AFPSHeroWeaponBase::GetTotalAmmo() const
+{
+	return TotalAmmo;
+}
+
+void AFPSHeroWeaponBase::SetTotalAmmo(int NewTotalAmmo)
+{
+	this->TotalAmmo = NewTotalAmmo;
+	if(GetOwnerCharacter()->GetLocalRole() == ENetRole::ROLE_Authority)
+		OnRep_TotalAmmo();
+}
+
+EWeaponSlot AFPSHeroWeaponBase::GetSlot()
+{
+	return EquipSlot;
+}
+
+void AFPSHeroWeaponBase::OnRep_Ammo()
+{
+	OnAmmoUpdate();
+}
+
+void AFPSHeroWeaponBase::OnRep_TotalAmmo()
+{
+	OnAmmoUpdate();
 }

@@ -1,0 +1,43 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "UObject/NoExportTypes.h"
+#include "FPSHero.h"
+#include "FPSHeroCharacter.h"
+#include "MobaUpgradeEntryBase.generated.h"
+
+/**
+ * 
+ */
+UCLASS(BlueprintType, Blueprintable, Abstract, EditInlineNew, Category = "Entry")
+class FPSHERO_API UMobaUpgradeEntryBase : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditDefaultsOnly)
+	FText Title;
+
+	UPROPERTY(EditDefaultsOnly)
+	FText Detail;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	EEntryLevel Level;
+
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent)
+	int Cost();
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly)
+	virtual void Apply(class AFPSHeroCharacter* Character);
+	
+	UFUNCTION(BlueprintCallable, NetMulticast, Reliable)
+	virtual void ApplyMulticast(class AFPSHeroCharacter* Character);
+	
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent)
+	void ApplyToCharacter(class AFPSHeroCharacter* Character);
+
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent)
+	void ApplyToCharacterMulticast(class AFPSHeroCharacter* Character);
+};
