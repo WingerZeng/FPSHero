@@ -11,8 +11,6 @@
 #include "FPSHeroCharacter.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Net/UnrealNetwork.h"
-//#TEST
-#include "DrawDebugHelpers.h"
 
 AFPSHeroGrenade::AFPSHeroGrenade()
 {
@@ -84,11 +82,6 @@ void AFPSHeroGrenade::DetachFromCharacter()
 	this->MeshComp->AttachToComponent(this->CollisionComp, FAttachmentTransformRules::KeepRelativeTransform);
 }
 
-void AFPSHeroGrenade::Tick(float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
-}
-
 void AFPSHeroGrenade::ThrowOut()
 {
 	if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
@@ -119,7 +112,8 @@ void AFPSHeroGrenade::OnActiveStateChanged()
 	Super::OnActiveStateChanged();
 	if (!bIsWeaponActive && !bThrown) {
 		bReadyToThrow = false;
-		GetOwnerCharacter()->GetAnimInstance()->Montage_Stop(0.4, ThrowMontage);
+		if(GetOwnerCharacter() && GetOwnerCharacter()->GetAnimInstance())
+			GetOwnerCharacter()->GetAnimInstance()->Montage_Stop(0.4, ThrowMontage);
 	}
 }
 

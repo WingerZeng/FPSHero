@@ -56,32 +56,9 @@ USkeletalMeshComponent* AMobaBotCharacter::GetCurrentMesh()
 {
 	return GetMesh();
 }
-
-void AMobaBotCharacter::Destroyed()
+void AMobaBotCharacter::OnFireServer_Implementation()
 {
-	if(GetController())
-		GetController()->Destroy();
-	Super::Destroyed();
-}
-
-float AMobaBotCharacter::InternalTakePointDamage(float Damage, FPointDamageEvent const& PointDamageEvent,
-                                                 AController* EventInstigator, AActor* DamageCauser)
-{
-	const float ActualDamage = Super::InternalTakePointDamage(Damage, PointDamageEvent, EventInstigator, DamageCauser);
-	if(ActualDamage > 0.0)
-	{
-		UAISense_Damage::ReportDamageEvent(GetWorld(), this, EventInstigator->GetPawn(), ActualDamage, PointDamageEvent.HitInfo.Location, PointDamageEvent.HitInfo.Location);
-	}
-	return ActualDamage;
-}
-
-float AMobaBotCharacter::InternalTakeRadialDamage(float Damage, FRadialDamageEvent const& RadialDamageEvent,
-	AController* EventInstigator, AActor* DamageCauser)
-{
-	const float ActualDamage = Super::InternalTakeRadialDamage(Damage, RadialDamageEvent, EventInstigator, DamageCauser);
-	if(ActualDamage > 0.0)
-	{
-		UAISense_Damage::ReportDamageEvent(GetWorld(), this, EventInstigator->GetPawn(), ActualDamage, RadialDamageEvent.Origin, GetActorLocation());
-	}
-	return ActualDamage;
+	//Bot的子弹是无限的
+	GetCurrentWeapon()->SetTotalAmmo(9999999);
+	Super::OnFireServer_Implementation();
 }

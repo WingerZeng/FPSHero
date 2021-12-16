@@ -34,18 +34,20 @@ public:
 	UFUNCTION(BlueprintCallable)
 	int GetTeam() const;
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, BlueprintAuthorityOnly)
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	void Birth();
 
 	UFUNCTION(BlueprintCallable)
 	APlayerController* 	GetPlayerController();
 	
+	UFUNCTION()
+	void OnRep_TeamID();
 protected:
 	UPROPERTY(ReplicatedUsing = OnRep_Money)
 	int Money = 0;
 	UFUNCTION()
 	void OnRep_Money();
 	
-	UPROPERTY(Replicated, VisibleAnywhere)
+	UPROPERTY(ReplicatedUsing = OnRep_TeamID, VisibleAnywhere)
 	int TeamID;
 };

@@ -55,6 +55,20 @@ void AFPSHeroGameMode::GameStart_Implementation()
 	bIsGameStarted = true;
 }
 
+void AFPSHeroGameMode::GameEnd_Implementation()
+{
+	bIsGameStarted = false;
+	for(auto it = GetWorld()->GetControllerIterator(); it; it++)
+	{
+		AFPSHeroCharacter* Character = Cast<AFPSHeroCharacter>(it->Get()->GetCharacter());
+		if(Character)
+		{
+			Character->SetViewModeServer(EViewMode::THIRD_PERSON);
+			Character->UnPossessed();
+		}
+	}
+}
+
 int AFPSHeroGameMode::GetDeathPunishMoney()
 {
 	return DeathPunishMoney;

@@ -17,6 +17,7 @@ enum class EViewMode : uint8
 {
 	FIRST_PERSON = 0,
 	THIRD_PERSON = 1,
+	DEAD_VIEW,
 };
 
 UENUM(BlueprintType)

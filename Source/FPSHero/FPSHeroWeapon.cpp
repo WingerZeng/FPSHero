@@ -178,23 +178,23 @@ void AFPSHeroWeapon::SingleFire()
 			// 方向性扩散
 			// 首先得到镜头的Up、Right方向在世界坐标系下的方向向量，再乘上对应方向的扩散系数
 			// #TEST
-			//eyeDir.Normalize();
-			//FVector UpDir(0, 0, 1);
-			//FVector RightDir = FVector::CrossProduct(eyeDir, UpDir);
-			//RightDir.Normalize();
-			//float SpreadUp = 0, SpreadRight = 0;
-			//if (RecoilInstance) {
-			//	RecoilInstance->GetDirectionalSpread(CurrentFiredAmmo, SpreadUp, SpreadRight);
-			//}
-			//eyeDir += UpDir * SpreadUp + RightDir * SpreadRight;
-			//eyeDir.Normalize();
-			//// 随机扩散
-			//// 根据扩散系数，在圆锥上取随机向量
-			//float SpreadScale = 0;
-			//if (RecoilInstance) {
-			//	RecoilInstance->GetRandomSpread(CurrentFiredAmmo, SpreadScale);
-			//}
-			//eyeDir = UKismetMathLibrary::RandomUnitVectorInConeInRadians(eyeDir, SpreadScale);
+			eyeDir.Normalize();
+			FVector UpDir(0, 0, 1);
+			FVector RightDir = FVector::CrossProduct(eyeDir, UpDir);
+			RightDir.Normalize();
+			float SpreadUp = 0, SpreadRight = 0;
+			if (RecoilInstance) {
+				RecoilInstance->GetDirectionalSpread(CurrentFiredAmmo, SpreadUp, SpreadRight);
+			}
+			eyeDir += UpDir * SpreadUp + RightDir * SpreadRight;
+			eyeDir.Normalize();
+			// 随机扩散
+			// 根据扩散系数，在圆锥上取随机向量
+			float SpreadScale = 0;
+			if (RecoilInstance) {
+				RecoilInstance->GetRandomSpread(CurrentFiredAmmo, SpreadScale);
+			}
+			eyeDir = UKismetMathLibrary::RandomUnitVectorInConeInRadians(eyeDir, SpreadScale);
 
 			// 得到光线追踪目标点
 			FVector traceEnd = eyeLoc + eyeDir * 100000;

@@ -3,6 +3,7 @@
 
 #include "FPSHeroGameStateBase.h"
 
+#include "FPSHeroGameMode.h"
 #include "FPSHeroPlayerStateBase.h"
 
 void AFPSHeroGameStateBase::AddMoneyForAllPlayer(int AddMoney)
@@ -40,3 +41,4 @@ void AFPSHeroGameStateBase::SetMoneyForAllPlayer(int NewMoney)
 		}
 	}
 }
+

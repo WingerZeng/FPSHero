@@ -27,6 +27,9 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
 	void GameStart();
 
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+	void GameEnd();
+	
 	UFUNCTION(BlueprintCallable)
 	int GetDeathPunishMoney();
 

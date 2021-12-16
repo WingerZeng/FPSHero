@@ -87,11 +87,9 @@ public:
 
 	virtual void Fire() override;
 
-	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	
 	virtual void DetachFromCharacter() override;
-	//#TEST
-	virtual void Tick(float DeltaSeconds);
 	
 protected:
 	UFUNCTION(BlueprintCallable, Category = GamePlay)
@@ -100,7 +98,7 @@ protected:
 	UFUNCTION(NetMulticast, Reliable)
 	void SetupThrownMovement();
 
-	virtual void OnActiveStateChanged();
+	virtual void OnActiveStateChanged() override;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = GamePlay)
 		void StartPrepare();

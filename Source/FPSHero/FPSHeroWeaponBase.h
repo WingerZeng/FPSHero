@@ -71,6 +71,8 @@ public:
 
 	virtual void OnAmmoUpdate();
 
+	void BeginPlay() override;
+
 	UFUNCTION(BlueprintCallable)
 	int GetAmmo() const;
 	
@@ -87,8 +89,6 @@ public:
 	EWeaponSlot GetSlot();
 	
 protected:
-	virtual void SetWeaponActive_Implementation(bool bActive);
-
 	UFUNCTION()
 	virtual void OnActiveStateChanged();
 
@@ -113,8 +113,10 @@ protected:
 	UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
 		EWeaponSlot SlotInOwner;
 
-	UPROPERTY(ReplicatedUsing = OnActiveStateChanged, VisibleAnywhere, BlueprintReadOnly)
+	UPROPERTY(ReplicatedUsing = OnRep_IsWeaponActive, VisibleAnywhere, BlueprintReadOnly)
 		bool bIsWeaponActive = false;
+	UFUNCTION()
+	void OnRep_IsWeaponActive();
 
 	UPROPERTY(Replicated, VisibleAnywhere, Category = "Weapon")
 		FireMode Mode;
@@ -123,16 +125,16 @@ protected:
 		bool IsFireModeLocked;
 	
 private:
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, VisibleAnywhere)
 		AFPSHeroCharacter* OwnerCharacter = nullptr;
 
 protected:
-	UPROPERTY(EditDefaultsOnly, ReplicatedUsing = OnRep_Ammo)
+	UPROPERTY(EditDefaultsOnly, ReplicatedUsing = OnRep_Ammo, BlueprintReadOnly)
 	int Ammo;
 	UFUNCTION()
 	void OnRep_Ammo();
 
-	UPROPERTY(EditDefaultsOnly, ReplicatedUsing = OnRep_TotalAmmo)
+	UPROPERTY(EditDefaultsOnly, ReplicatedUsing = OnRep_TotalAmmo, BlueprintReadOnly)
 	int TotalAmmo;
 	UFUNCTION()
 	void OnRep_TotalAmmo();

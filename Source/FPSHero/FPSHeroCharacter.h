@@ -4,19 +4,26 @@
 #include "CoreMinimal.h"
 #include "FPSHero.h"
 #include "FPSHeroHUD.h"
+#include "FPSHeroPlayerStateBase.h"
 #include "GameFramework/Character.h"
 #include "FPSHeroWeaponBase.h"
+#include "Components/WidgetComponent.h"
 #include "Containers/Map.h"
 #include "Containers/Array.h"
 #include "FPSHeroCharacter.generated.h"
 
 class UInputComponent;
 
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_TwoParams(FHealthChangeSignature, AFPSHeroCharacter, OnHealthChanged, AFPSHeroCharacter*, Character, float, Health);
+
+DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_OneParam(FDieSignature, AFPSHeroCharacter, OnDead, AFPSHeroCharacter*, Character);
+
 UCLASS(config=Game)
 class AFPSHeroCharacter : public ACharacter
 {
 	GENERATED_BODY()
-
+public:
+	friend void AFPSHeroPlayerStateBase::OnRep_TeamID();
 public:
 	AFPSHeroCharacter();
 	
@@ -38,6 +45,11 @@ public:
 	UFUNCTION()
 	virtual void OnWeaponUpdate();
 
+	virtual void Jump() override;
+	
+	UFUNCTION(Server, Reliable)
+	void JumpServer();
+	
 	UFUNCTION(BlueprintAuthorityOnly, BlueprintCallable)
 		void SwitchToWeaponSlot(EWeaponSlot WeaponSlot);
 
@@ -116,6 +128,9 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	int GetTeam() const;
+	
+	UFUNCTION(BlueprintCallable)
+	ETEAM GetETeam() const;
 
 	UFUNCTION(BlueprintCallable)
 	FRotator GetCharacterViewRotation() const;
@@ -132,7 +147,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	bool IsDead();
-    
+
+	UPROPERTY(BlueprintAssignable)
+	FHealthChangeSignature OnHealthChanged;
+	
+	UPROPERTY(BlueprintAssignable)
+	FDieSignature OnDead;
+	
 protected:
 	virtual void BeginPlay() override;
 
@@ -142,7 +163,8 @@ protected:
 
 	virtual float InternalTakeRadialDamage(float Damage, FRadialDamageEvent const& RadialDamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
-	float ApplyDamage(float Damage);
+	//施加计算防御力和攻击力后的伤害, #TODO2 伤害计算模块之后可以单独抽象为一个类
+	float ApplyDamage(float Damage, float InstigatorAttack, float ReceiverDefence);
 	
 public:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
@@ -277,6 +299,9 @@ protected:
 
 	virtual void OnDie();
 
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	void OnTeamChanged();
+	
 	UFUNCTION(NetMulticast, Reliable)
 	void DieMulticaset(FVector DamageImpulse, FVector DamageLocation, bool bIsDamagePoint);
 
@@ -285,7 +310,7 @@ protected:
 	virtual void Initialize();
 		 
 		/** Pawn mesh: 1st person view (arms; seen only by self) */
-	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Mesh)
 		class USkeletalMeshComponent* Mesh1P;
 
 	/** First person camera */
@@ -295,6 +320,9 @@ protected:
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 		class USceneComponent* FirstPersonCameraHolder;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = Camera, meta = (AllowPrivateAccess = "true"))
+	class USceneComponent* DeadViewCameraHolder;
+	
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 		class USpringArmComponent* ThirdPersonSpringArmComp;
 
@@ -359,8 +387,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly)
 	int KillAwardMoney = 200;
 
-	UPROPERTY(Replicated, VisibleAnywhere)
-		int TeamID;
+	UPROPERTY(ReplicatedUsing = OnRep_TeamID, VisibleAnywhere)
+		int TeamID = ETEAM_NONE;
+	UFUNCTION()
+	void OnRep_TeamID();
 
 	// 记录最后一次伤害的冲量，在死亡时附加
 	FVector LastDamageImpulse;
@@ -369,6 +399,15 @@ protected:
 
 	UPROPERTY(VisibleDefaultsOnly)
 	FName BotAimSocketName = "BotAimSocket"; // Character将被Bot自动瞄准该位置
+
+	UPROPERTY(VisibleDefaultsOnly)
+	float DefencePowBase = 0.95;
+	
+	UPROPERTY(VisibleDefaultsOnly)
+	float AttackPowBase = 1.04;
+
+	UPROPERTY(Replicated, BlueprintReadWrite)
+	bool bIsJumping = false;
 };
 
 

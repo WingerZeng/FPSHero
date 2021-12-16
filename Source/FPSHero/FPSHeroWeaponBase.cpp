@@ -147,10 +147,17 @@ void AFPSHeroWeaponBase::OnAmmoUpdate()
 	}
 }
 
+void AFPSHeroWeaponBase::BeginPlay()
+{
+	Super::BeginPlay();
+	//无论如何在初始化时都要调用，防止发生active值相同不同步的情况
+	OnActiveStateChanged();
+}
+
 void AFPSHeroWeaponBase::SetWeaponActive_Implementation(bool bActive)
 {
 	bIsWeaponActive = bActive;
-	OnActiveStateChanged();
+	OnRep_IsWeaponActive();
 }
 
 void AFPSHeroWeaponBase::OnActiveStateChanged()
@@ -166,7 +173,7 @@ int AFPSHeroWeaponBase::GetAmmo() const
 void AFPSHeroWeaponBase::SetAmmo(int NewAmmo)
 {
 	this->Ammo = FMath::Min(GetTotalAmmo(), NewAmmo);
-	if(GetOwnerCharacter()->GetLocalRole() == ENetRole::ROLE_Authority)
+	if(GetOwnerCharacter() && GetOwnerCharacter()->GetLocalRole() == ENetRole::ROLE_Authority)
 		OnRep_Ammo();
 }
 
@@ -178,13 +185,18 @@ int AFPSHeroWeaponBase::GetTotalAmmo() const
 void AFPSHeroWeaponBase::SetTotalAmmo(int NewTotalAmmo)
 {
 	this->TotalAmmo = NewTotalAmmo;
-	if(GetOwnerCharacter()->GetLocalRole() == ENetRole::ROLE_Authority)
+	if(GetOwnerCharacter() && GetOwnerCharacter()->GetLocalRole() == ENetRole::ROLE_Authority)
 		OnRep_TotalAmmo();
 }
 
 EWeaponSlot AFPSHeroWeaponBase::GetSlot()
 {
 	return EquipSlot;
+}
+
+void AFPSHeroWeaponBase::OnRep_IsWeaponActive()
+{
+	OnActiveStateChanged();
 }
 
 void AFPSHeroWeaponBase::OnRep_Ammo()

@@ -22,9 +22,5 @@ public:
 
 	virtual USkeletalMeshComponent* GetCurrentMesh() override;
 
-	virtual void Destroyed() override;
-protected:
-	virtual float InternalTakePointDamage(float Damage, FPointDamageEvent const& PointDamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
-
-	virtual float InternalTakeRadialDamage(float Damage, FRadialDamageEvent const& RadialDamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+	virtual void OnFireServer_Implementation() override;
 };

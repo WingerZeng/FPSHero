@@ -20,6 +20,12 @@ public:
 	UFUNCTION(BlueprintImplementableEvent)
 	void CharacterUpdate();
 
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	void Die(float RebirthInterval);
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	void Rebirth();
+	
 private:
 	/** Crosshair asset pointer */
 	class UTexture2D* CrosshairTex;
