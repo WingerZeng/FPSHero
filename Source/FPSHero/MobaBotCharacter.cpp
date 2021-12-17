@@ -60,5 +60,6 @@ void AMobaBotCharacter::OnFireServer_Implementation()
 {
 	//Bot的子弹是无限的
 	GetCurrentWeapon()->SetTotalAmmo(9999999);
+	GetCurrentWeapon()->SetAmmo(9999999);
 	Super::OnFireServer_Implementation();
 }

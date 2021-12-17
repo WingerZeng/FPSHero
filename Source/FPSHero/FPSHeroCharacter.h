@@ -164,7 +164,8 @@ protected:
 	virtual float InternalTakeRadialDamage(float Damage, FRadialDamageEvent const& RadialDamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
 	//施加计算防御力和攻击力后的伤害, #TODO2 伤害计算模块之后可以单独抽象为一个类
-	float ApplyDamage(float Damage, float InstigatorAttack, float ReceiverDefence);
+	UFUNCTION(BlueprintNativeEvent)
+	float CalDamage(float Damage, AFPSHeroCharacter* DamageInstigator);
 	
 public:
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */

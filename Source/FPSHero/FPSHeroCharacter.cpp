@@ -695,7 +695,9 @@ float AFPSHeroCharacter::InternalTakePointDamage(float Damage, FPointDamageEvent
 		LastDamageImpulse = ShotDir * PointDamageEvent.DamageTypeClass->GetDefaultObject<UDamageType>()->DamageImpulse;
 		LastDamageLocation = PointDamageEvent.HitInfo.Location;
 		bIsLastDamagePoint = true;
-		return ApplyDamage(Damage, DamagorCharacter->GetAttack(), this->GetDefence());
+		float ActualDamage = CalDamage(Damage, DamagorCharacter); 
+		SetHealth(GetHealth() - ActualDamage);
+		return ActualDamage;
 	}
 	return 0;
 }
@@ -719,15 +721,16 @@ float AFPSHeroCharacter::InternalTakeRadialDamage(float Damage, FRadialDamageEve
 		DamageDir.Normalize();
 		LastDamageImpulse = DamageDir * RadialDamageEvent.DamageTypeClass->GetDefaultObject<UDamageType>()->DamageImpulse;
 		bIsLastDamagePoint = false;
-		return ApplyDamage(Damage, DamagorCharacter->GetAttack(), this->GetDefence());
+		float ActualDamage = CalDamage(Damage, DamagorCharacter); 
+		SetHealth(GetHealth() - ActualDamage);
+		return ActualDamage;
 	}
 	return 0;
 }
 
-float AFPSHeroCharacter::ApplyDamage(float Damage, float InstigatorAttack, float ReceiverDefence)
+float AFPSHeroCharacter::CalDamage_Implementation(float Damage,  AFPSHeroCharacter* DamageInstigator)
 {
-	Damage = FMath::Pow(DefencePowBase, ReceiverDefence) * FMath::Pow(AttackPowBase, InstigatorAttack) * Damage;
-	SetHealth(GetHealth() - Damage);
+	Damage = FMath::Pow(DefencePowBase, GetDefence()) * FMath::Pow(AttackPowBase, DamageInstigator->GetAttack()) * Damage;
 	return Damage;
 }
 
