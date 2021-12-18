@@ -28,6 +28,9 @@ public:
 	void PlayHitEffect(const FHitResult& Hit);
 
 	void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UFUNCTION(BlueprintCallable)
+	FVector GetMuzzleLocation();
 	
 protected:
 	virtual void SingleFire();
@@ -47,11 +50,11 @@ public:
 	/* Blueprint Attributes */
 
 	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
-		FName MussleName;
+		FName MuzzleName;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 		float ShootIntervalSecond;
-
+	
 	UPROPERTY(EditDefaultsOnly, Instanced, Category = "Recoil")
 		UFPSHeroRecoilBase* RecoilInstance;
 
@@ -68,7 +71,17 @@ public:
 		UParticleSystem* DefaultImpactEffect;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Effect")
-	USoundBase* FireSound;
+		UParticleSystem* FireTraceEffect;
+	
+	/** param name for beam target in smoke trail */
+	UPROPERTY(EditDefaultsOnly, Category=Effects)
+		FName FireTraceTargetParam;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+		USoundBase* FireSound;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Effect")
+		class USoundAttenuation* FireSoundAttenuation;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Animation")
 		UAnimMontage* FireMontage;

@@ -17,7 +17,7 @@
 
 AFPSHeroWeapon::AFPSHeroWeapon()
 {
-	MussleName = "MuzzleSocket";
+	MuzzleName = "MuzzleSocket";
 
 	BodyDamage = 50;
 	HeadDamage = 100;
@@ -104,11 +104,11 @@ void AFPSHeroWeapon::PlayFireEffect()
 {
 	//ǹ����Ч
 	if (MussleEffect) {
-		UGameplayStatics::SpawnEmitterAttached(MussleEffect, MeshComp, MussleName);
+		UGameplayStatics::SpawnEmitterAttached(MussleEffect, MeshComp, MuzzleName);
 	}
 	//��Ч
 	if(FireSound)
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetMuzzleLocation(), 1, 1, 0, FireSoundAttenuation,nullptr);
 	APlayerController* Controller = Cast<APlayerController>(GetOwnerCharacter()->GetController());
 
 	if (GetOwnerCharacter() && GetOwnerCharacter()->IsLocallyControlled() && RecoilInstance) {
@@ -128,7 +128,7 @@ void AFPSHeroWeapon::PlayFireEffect()
 void AFPSHeroWeapon::PlayHitEffect(const FHitResult& Hit)
 {
 	EPhysicalSurface physType = UPhysicalMaterial::DetermineSurfaceType(Hit.PhysMaterial.Get());
-
+	
 	UParticleSystem* EffectToPlay;
 
 	switch (physType) {
@@ -143,9 +143,23 @@ void AFPSHeroWeapon::PlayHitEffect(const FHitResult& Hit)
 		break;
 	}
 
+	if(FireTraceEffect)
+	{
+		UParticleSystemComponent* TraceComp = UGameplayStatics::SpawnEmitterAtLocation(this, FireTraceEffect, GetMuzzleLocation());
+		if (TraceComp)
+		{
+			TraceComp->SetVectorParameter(FireTraceTargetParam, Hit.Location);
+		}
+	}
+	
 	if (EffectToPlay) {
 		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), EffectToPlay, Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
 	}
+}
+
+FVector AFPSHeroWeapon::GetMuzzleLocation()
+{
+	return MeshComp->GetSocketLocation(MuzzleName);
 }
 
 void AFPSHeroWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
