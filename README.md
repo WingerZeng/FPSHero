@@ -1,9 +1,10 @@
 # FPS Hero
 
-Traing your aiming skills!
+UE4 FPS Game
 
 ## Features
 
-- Multiple weapon options
-- CS-like recoil system
-- Adjustable training
+- Weapon System
+- Multiple AI
+- Dedicated Server Multiplayer
+- A Simple MOBA Game Map

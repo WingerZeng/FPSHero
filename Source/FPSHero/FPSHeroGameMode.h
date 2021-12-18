@@ -38,6 +38,8 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	bool IsGameStarted();
+
+	virtual void PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
 	
 protected:
 	UPROPERTY(EditDefaultsOnly)

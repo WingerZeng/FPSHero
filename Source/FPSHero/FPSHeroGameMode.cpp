@@ -10,8 +10,7 @@ AFPSHeroGameMode::AFPSHeroGameMode()
 	: Super()
 {
 	// set default pawn class to our Blueprinted character
-	static ConstructorHelpers::FClassFinder<APawn> PlayerPawnClassFinder(TEXT("/Game/FirstPersonCPP/Blueprints/FirstPersonCharacter"));
-	DefaultPawnClass = PlayerPawnClassFinder.Class;
+	DefaultPawnClass = AFPSHeroCharacter::StaticClass();
 
 	// use our custom HUD class
 	HUDClass = AFPSHeroHUD::StaticClass();
@@ -77,4 +76,15 @@ int AFPSHeroGameMode::GetDeathPunishMoney()
 bool AFPSHeroGameMode::IsGameStarted()
 {
 	return bIsGameStarted;
+}
+
+void AFPSHeroGameMode::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueNetId,
+	FString& ErrorMessage)
+{
+	Super::PreLogin(Options, Address, UniqueNetId, ErrorMessage);
+
+	if(IsGameStarted())
+	{
+		ErrorMessage = "Game Is Processing!";
+	}
 }

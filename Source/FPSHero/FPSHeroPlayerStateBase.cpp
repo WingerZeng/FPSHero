@@ -93,7 +93,7 @@ void AFPSHeroPlayerStateBase::Birth_Implementation()
 			APlayerController* Controller = GetPlayerController();
 			if(Controller)
 			{
-				//ÏÈÉ¾³ıÖ®Ç°µÄ
+				//å…ˆåˆ é™¤ä¹‹å‰çš„
 				APawn* Pawn = Controller->GetPawn();
 				if(Pawn && Pawn->IsValidLowLevel())
 				{
@@ -107,7 +107,7 @@ void AFPSHeroPlayerStateBase::Birth_Implementation()
 					GameMode->RestartPlayerAtTransform(Controller, Transform);
 					Pawn = Controller->GetPawn();
 				}
-				while (!Pawn || !Pawn->IsValidLowLevel()); // ¿¼ÂÇµ½Éú³ÉÎ»ÖÃ±»×èµ²£¬ĞèÒª¶à´Î³¢ÊÔ
+				while (!Pawn || !Pawn->IsValidLowLevel()); // è€ƒè™‘åˆ°ç”Ÿæˆä½ç½®è¢«é˜»æŒ¡ï¼Œéœ€è¦å¤šæ¬¡å°è¯•
 				AFPSHeroCharacter* Character = Cast<AFPSHeroCharacter>(Pawn);
 				Character->OnControllerChanged();
 			}

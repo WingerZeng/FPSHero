@@ -32,16 +32,16 @@ void AFPSHeroWeapon::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if(!IsFiring){
 		if (GetOwnerCharacter() && GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
-			// Í£Ö¹Éä»÷ºó£¬¼ÆËãºó×øÁ¦»Ö¸´ºÍ×¼ÐÄ»Ö¸´
+			// Í£Ö¹ï¿½ï¿½ï¿½ï¿½ó£¬¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½×¼ï¿½Ä»Ö¸ï¿½
 			SecondsSinceStopFire += DeltaSeconds;
-			// ºó×øÁ¦»Ö¸´
+			// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½
 			if (CurrentFiredAmmo > 0 && RecoilInstance) {
 				CurrentFiredAmmo = FGenericPlatformMath::Max(0.0f,
 					FGenericPlatformMath::CeilToFloat((RecoilInstance->RecoilRestoreTime - SecondsSinceStopFire)
 						/ RecoilInstance->RecoilRestoreTime * FiredAmmoWhenStop));
 			}
 		}
-		// ×¼ÐÄ»Ö¸´
+		// ×¼ï¿½Ä»Ö¸ï¿½
 		if (GetOwnerCharacter() && GetOwnerCharacter()->IsLocallyControlled())
 		{
 			float RestoreRatio = 1;
@@ -102,19 +102,19 @@ void AFPSHeroWeapon::DealHit_Implementation(const FHitResult& Hit)
 
 void AFPSHeroWeapon::PlayFireEffect()
 {
-	//Ç¹¿ÚÌØÐ§
+	//Ç¹ï¿½ï¿½ï¿½ï¿½Ð§
 	if (MussleEffect) {
 		UGameplayStatics::SpawnEmitterAttached(MussleEffect, MeshComp, MussleName);
 	}
-	//ÒôÐ§
+	//ï¿½ï¿½Ð§
 	if(FireSound)
 		UGameplayStatics::PlaySoundAtLocation(this, FireSound, GetActorLocation());
 	APlayerController* Controller = Cast<APlayerController>(GetOwnerCharacter()->GetController());
 
 	if (GetOwnerCharacter() && GetOwnerCharacter()->IsLocallyControlled() && RecoilInstance) {
-		// ¾µÍ·¶¶¶¯
+		// ï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½
 		RecoilInstance->ApplyCameraShake(CurrentFiredAmmo, Controller);
-		// ¾µÍ·ÒÆ¶¯
+		// ï¿½ï¿½Í·ï¿½Æ¶ï¿½
 		float RecoilPitch, RecoilYaw;
 		RecoilInstance->GetCameraMovement(CurrentFiredAmmo, RecoilPitch, RecoilYaw);
 		ApplyNewRecoilCameraOffset(RecoilPitch, RecoilYaw);
@@ -168,15 +168,15 @@ void AFPSHeroWeapon::SingleFire()
 		PlayFireEffect();
 
 		if (GetOwnerCharacter()->GetLocalRole() == ROLE_Authority) {
-			// µÃµ½ÉãÏñ»úµÄÎ»ÖÃºÍ³¯Ïò
+			// ï¿½Ãµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ÃºÍ³ï¿½ï¿½ï¿½
 			FVector eyeLoc;
 			FRotator eyeRot;
 			GetOwnerCharacter()->GetActorEyesViewPoint(eyeLoc, eyeRot);
 			FVector eyeDir = eyeRot.Vector();
 
-			/* ºó×øÁ¦À©É¢ */
-			// ·½ÏòÐÔÀ©É¢
-			// Ê×ÏÈµÃµ½¾µÍ·µÄUp¡¢Right·½ÏòÔÚÊÀ½ç×ø±êÏµÏÂµÄ·½ÏòÏòÁ¿£¬ÔÙ³ËÉÏ¶ÔÓ¦·½ÏòµÄÀ©É¢ÏµÊý
+			/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É¢ */
+			// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É¢
+			// ï¿½ï¿½ï¿½ÈµÃµï¿½ï¿½ï¿½Í·ï¿½ï¿½Upï¿½ï¿½Rightï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ïµï¿½ÂµÄ·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ù³ï¿½ï¿½Ï¶ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É¢Ïµï¿½ï¿½
 			// #TEST
 			eyeDir.Normalize();
 			FVector UpDir(0, 0, 1);
@@ -188,29 +188,29 @@ void AFPSHeroWeapon::SingleFire()
 			}
 			eyeDir += UpDir * SpreadUp + RightDir * SpreadRight;
 			eyeDir.Normalize();
-			// Ëæ»úÀ©É¢
-			// ¸ù¾ÝÀ©É¢ÏµÊý£¬ÔÚÔ²×¶ÉÏÈ¡Ëæ»úÏòÁ¿
+			// ï¿½ï¿½ï¿½ï¿½ï¿½É¢
+			// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É¢Ïµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô²×¶ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 			float SpreadScale = 0;
 			if (RecoilInstance) {
 				RecoilInstance->GetRandomSpread(CurrentFiredAmmo, SpreadScale);
 			}
 			eyeDir = UKismetMathLibrary::RandomUnitVectorInConeInRadians(eyeDir, SpreadScale);
 
-			// µÃµ½¹âÏß×·×ÙÄ¿±êµã
+			// ï¿½Ãµï¿½ï¿½ï¿½ï¿½ï¿½×·ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½
 			FVector traceEnd = eyeLoc + eyeDir * 100000;
 			FHitResult TempHit;
 			FCollisionQueryParams para;
-			// ºöÂÔ½ÇÉ«ºÍÇ¹Ä£ÐÍ
+			// ï¿½ï¿½ï¿½Ô½ï¿½É«ï¿½ï¿½Ç¹Ä£ï¿½ï¿½
 			para.AddIgnoredActor(GetOwnerCharacter());
 			para.AddIgnoredActor(this);
-			// Ê¹ÓÃ¸´ÔÓÅö×²À´Çó½»
-			para.bTraceComplex = true;
+			// Ê¹ï¿½Ã¸ï¿½ï¿½ï¿½ï¿½ï¿½×²ï¿½ï¿½ï¿½ï¿½
+			para.bTraceComplex = false;
 			para.bReturnPhysicalMaterial = true;
 			if (GetWorld()->LineTraceSingleByChannel(TempHit, eyeLoc, traceEnd, TRACECHANNEL_WEAPON, para)) {
 				LastHitResult = TempHit;
-				// ´¦ÀíÃüÖÐ
+				// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 				DealHit(LastHitResult);
-				// ÃüÖÐÐ§¹û
+				// ï¿½ï¿½ï¿½ï¿½Ð§ï¿½ï¿½
 				OnRep_LastHitResult();
 			}
 		}
@@ -223,9 +223,9 @@ void AFPSHeroWeapon::ApplyNewRecoilCameraOffset(float Pitch, float Yaw)
 		return;
 	APlayerController* controller = Cast<APlayerController>(GetOwnerCharacter()->GetController());
 	if (controller) {
-		// È¡·´Ê¹µÃÕýÖµÎª¾µÍ·ÏòÉÏ
+		// È¡ï¿½ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½ÖµÎªï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½
 		controller->AddPitchInput(-(Pitch - PitchOffset));
-		// È¡·´Ê¹µÃÕýÖµÎª¾µÍ·ÏòÓÒ
+		// È¡ï¿½ï¿½Ê¹ï¿½ï¿½ï¿½ï¿½ÖµÎªï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½
 		controller->AddYawInput(-(Yaw - YawOffset));
 		PitchOffset = Pitch;
 		YawOffset = Yaw;

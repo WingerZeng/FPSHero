@@ -3,7 +3,7 @@
 
 #include "FPSHeroAIController.h"
 
-// ¿ØÖÆÆ÷ÒÔAimingSpeedµÄËÙ¶ÈÏòfocal pointÒÆ¶¯£¬¶ø²»ÊÇË²ÒÆ
+// æ§åˆ¶å™¨ä»¥AimingSpeedçš„é€Ÿåº¦å‘focal pointç§»åŠ¨ï¼Œè€Œä¸æ˜¯ç¬ç§»
 void AFPSHeroAIController::UpdateControlRotation(float DeltaTime, bool bUpdatePawn)
 {
 	APawn* const MyPawn = GetPawn();
